@@ -1,0 +1,466 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Primitive Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isVerifiedUser() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'adityaair1.2029@gmail.com'
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Validation Blueprints ---
+    function isValidUserProfile(data, uid) {
+      return data.keys().hasAll(['uid', 'email', 'role', 'theme', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'uid', 'displayName', 'email', 'photoURL', 'role', 'theme',
+          'defaultCrawlLimit', 'defaultCrawlDepth', 'emailAlerts', 'webhookAlerts',
+          'createdAt', 'updatedAt'
+        ])
+        && data.uid == uid
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
+        && (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 120))
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 1000))
+        && data.role in ['user', 'owner']
+        && data.theme in ['dark', 'light']
+        && (!('defaultCrawlLimit' in data) || (data.defaultCrawlLimit is int && data.defaultCrawlLimit >= 1 && data.defaultCrawlLimit <= 25))
+        && (!('defaultCrawlDepth' in data) || (data.defaultCrawlDepth is int && data.defaultCrawlDepth >= 0 && data.defaultCrawlDepth <= 3))
+        && (!('emailAlerts' in data) || data.emailAlerts is bool)
+        && (!('webhookAlerts' in data) || data.webhookAlerts is bool)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidWebsiteScan(data, scanId) {
+      return data.keys().hasAll([
+          'scanId', 'ownerUid', 'targetUrl', 'normalizedDomain', 'status',
+          'authorizedConfirmed', 'scannerVersion', 'startedAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'scanId', 'ownerUid', 'targetUrl', 'normalizedDomain', 'status',
+          'currentStage', 'progressPercent', 'authorizedConfirmed', 'coverage',
+          'scores', 'summary', 'aiExplanation', 'metrics', 'findingsCount',
+          'scannerVersion', 'startedAt', 'completedAt', 'updatedAt'
+        ])
+        && data.scanId == scanId
+        && isValidId(data.scanId)
+        && data.ownerUid == request.auth.uid
+        && isValidId(data.ownerUid)
+        && data.targetUrl is string && data.targetUrl.size() >= 8 && data.targetUrl.size() <= 2048
+        && data.normalizedDomain is string && data.normalizedDomain.size() >= 1 && data.normalizedDomain.size() <= 255
+        && data.status in ['pending', 'queued', 'running', 'partially_completed', 'completed', 'failed', 'cancelled']
+        && (!('currentStage' in data) || (data.currentStage is string && data.currentStage.size() <= 120))
+        && (!('progressPercent' in data) || (data.progressPercent is int && data.progressPercent >= 0 && data.progressPercent <= 100))
+        && data.authorizedConfirmed == true
+        && (!('coverage' in data) || data.coverage is map)
+        && (!('scores' in data) || data.scores is map)
+        && (!('summary' in data) || (data.summary is string && data.summary.size() <= 4000))
+        && (!('aiExplanation' in data) || (data.aiExplanation is string && data.aiExplanation.size() <= 8000))
+        && (!('metrics' in data) || data.metrics is map)
+        && (!('findingsCount' in data) || data.findingsCount is map)
+        && data.scannerVersion is string && data.scannerVersion.size() >= 1 && data.scannerVersion.size() <= 40
+        && data.startedAt is timestamp
+        && (!('completedAt' in data) || data.completedAt == null || data.completedAt is timestamp)
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidScanFinding(data, findingId) {
+      return data.keys().hasAll([
+          'findingId', 'scanId', 'ownerUid', 'category', 'title', 'severity',
+          'description', 'evidence', 'impact', 'recommendation', 'verification',
+          'status', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'findingId', 'scanId', 'ownerUid', 'category', 'title', 'severity',
+          'priorityGroup', 'description', 'evidence', 'affectedUrl', 'observedValue',
+          'impact', 'recommendation', 'remediation', 'verification', 'status', 'createdAt'
+        ])
+        && data.findingId == findingId
+        && isValidId(data.findingId)
+        && isValidId(data.scanId)
+        && data.ownerUid == request.auth.uid
+        && isValidId(data.ownerUid)
+        && data.category in ['security', 'frontend', 'backend', 'engagement', 'api', 'database', 'hosting', 'backup', 'monitoring']
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 200
+        && data.severity in ['critical', 'high', 'medium', 'low', 'informational', 'passed']
+        && (!('priorityGroup' in data) || data.priorityGroup in ['fix_immediately', 'fix_soon', 'optimization', 'best_practice', 'long_term'])
+        && data.description is string && data.description.size() <= 2000
+        && data.evidence is string && data.evidence.size() <= 2000
+        && (!('affectedUrl' in data) || (data.affectedUrl is string && data.affectedUrl.size() <= 2048))
+        && (!('observedValue' in data) || (data.observedValue is string && data.observedValue.size() <= 1000))
+        && data.impact is string && data.impact.size() <= 1500
+        && data.recommendation is string && data.recommendation.size() <= 2000
+        && (!('remediation' in data) || (data.remediation is string && data.remediation.size() <= 2500))
+        && data.verification is string && data.verification.size() <= 1500
+        && data.status in ['open', 'acknowledged', 'resolved', 'passed', 'not_assessed']
+        && data.createdAt is timestamp;
+    }
+
+    function isValidIntegrationRecord(data, integrationId) {
+      return data.keys().hasAll([
+          'integrationId', 'ownerUid', 'provider', 'connectionStatus', 'permissions', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'integrationId', 'ownerUid', 'provider', 'category', 'connectionStatus',
+          'permissions', 'accountLabel', 'configMeta', 'lastSyncAt', 'createdAt', 'updatedAt'
+        ])
+        && data.integrationId == integrationId
+        && isValidId(data.integrationId)
+        && data.ownerUid == request.auth.uid
+        && isValidId(data.ownerUid)
+        && data.provider is string && data.provider.size() >= 1 && data.provider.size() <= 64
+        && (!('category' in data) || (data.category is string && data.category.size() <= 64))
+        && data.connectionStatus in ['connected', 'not_configured', 'requires_auth', 'error']
+        && data.permissions is string && data.permissions.size() <= 500
+        && (!('accountLabel' in data) || (data.accountLabel is string && data.accountLabel.size() <= 150))
+        && (!('configMeta' in data) || data.configMeta is map)
+        && (!('lastSyncAt' in data) || data.lastSyncAt == null || data.lastSyncAt is timestamp)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidVerifiedDomain(data, domainId) {
+      return data.keys().hasAll([
+          'domainId', 'ownerUid', 'domain', 'method', 'challengeToken', 'verified', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'domainId', 'ownerUid', 'domain', 'method', 'challengeToken', 'verified', 'verifiedAt', 'createdAt', 'updatedAt'
+        ])
+        && data.domainId == domainId
+        && isValidId(data.domainId)
+        && data.ownerUid == request.auth.uid
+        && isValidId(data.ownerUid)
+        && data.domain is string && data.domain.size() >= 1 && data.domain.size() <= 255
+        && data.method in ['dns_txt', 'html_meta', 'well_known']
+        && data.challengeToken is string && data.challengeToken.size() >= 8 && data.challengeToken.size() <= 128
+        && data.verified is bool
+        && (!('verifiedAt' in data) || data.verifiedAt == null || data.verifiedAt is timestamp)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidMonitoringTarget(data, targetId) {
+      return data.keys().hasAll([
+          'targetId', 'ownerUid', 'domain', 'targetUrl', 'frequencyMinutes', 'enabled', 'lastStatus', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'targetId', 'ownerUid', 'domain', 'targetUrl', 'frequencyMinutes', 'enabled',
+          'lastStatus', 'lastHttpStatus', 'lastResponseTimeMs', 'sslExpiryDays',
+          'alertEmailEnabled', 'webhookUrl', 'lastCheckAt', 'createdAt', 'updatedAt'
+        ])
+        && data.targetId == targetId
+        && isValidId(data.targetId)
+        && data.ownerUid == request.auth.uid
+        && isValidId(data.ownerUid)
+        && data.domain is string && data.domain.size() >= 1 && data.domain.size() <= 255
+        && data.targetUrl is string && data.targetUrl.size() >= 8 && data.targetUrl.size() <= 2048
+        && data.frequencyMinutes is int && data.frequencyMinutes >= 5 && data.frequencyMinutes <= 1440
+        && data.enabled is bool
+        && data.lastStatus in ['up', 'degraded', 'down', 'pending']
+        && (!('lastHttpStatus' in data) || data.lastHttpStatus == null || data.lastHttpStatus is int)
+        && (!('lastResponseTimeMs' in data) || data.lastResponseTimeMs == null || data.lastResponseTimeMs is int)
+        && (!('sslExpiryDays' in data) || data.sslExpiryDays == null || data.sslExpiryDays is int)
+        && (!('alertEmailEnabled' in data) || data.alertEmailEnabled is bool)
+        && (!('webhookUrl' in data) || (data.webhookUrl is string && data.webhookUrl.size() <= 1000))
+        && (!('lastCheckAt' in data) || data.lastCheckAt == null || data.lastCheckAt is timestamp)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidMonitoringEvent(data, eventId) {
+      return data.keys().hasAll([
+          'eventId', 'ownerUid', 'targetId', 'status', 'responseTimeMs', 'details', 'timestamp'
+        ])
+        && data.keys().hasOnly([
+          'eventId', 'ownerUid', 'targetId', 'status', 'httpStatus', 'responseTimeMs', 'details', 'timestamp'
+        ])
+        && data.eventId == eventId
+        && isValidId(data.eventId)
+        && data.ownerUid == request.auth.uid
+        && isValidId(data.ownerUid)
+        && isValidId(data.targetId)
+        && data.status in ['up', 'degraded', 'down']
+        && (!('httpStatus' in data) || data.httpStatus == null || data.httpStatus is int)
+        && data.responseTimeMs is int && data.responseTimeMs >= 0 && data.responseTimeMs <= 120000
+        && data.details is string && data.details.size() <= 1000
+        && data.timestamp is timestamp;
+    }
+
+    function isValidBackupStatusRecord(data, recordId) {
+      return data.keys().hasAll([
+          'recordId', 'ownerUid', 'provider', 'verifiedStatus', 'evidence', 'lastCheckedAt', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'recordId', 'ownerUid', 'provider', 'verifiedStatus', 'lastBackupAt',
+          'frequency', 'retentionPolicy', 'encrypted', 'storageLocation', 'evidence',
+          'lastCheckedAt', 'createdAt'
+        ])
+        && data.recordId == recordId
+        && isValidId(data.recordId)
+        && data.ownerUid == request.auth.uid
+        && isValidId(data.ownerUid)
+        && data.provider is string && data.provider.size() >= 1 && data.provider.size() <= 64
+        && data.verifiedStatus in ['unavailable', 'verified', 'warning']
+        && (!('lastBackupAt' in data) || data.lastBackupAt == null || data.lastBackupAt is timestamp)
+        && (!('frequency' in data) || (data.frequency is string && data.frequency.size() <= 100))
+        && (!('retentionPolicy' in data) || (data.retentionPolicy is string && data.retentionPolicy.size() <= 200))
+        && (!('encrypted' in data) || data.encrypted == null || data.encrypted is bool)
+        && (!('storageLocation' in data) || (data.storageLocation is string && data.storageLocation.size() <= 200))
+        && data.evidence is string && data.evidence.size() <= 1000
+        && data.lastCheckedAt is timestamp
+        && data.createdAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+
+    match /admins/{adminUid} {
+      allow get: if isValidId(adminUid) && (isOwner(adminUid) || isAdmin());
+      allow list, create, update, delete: if false;
+    }
+
+    match /users/{uid} {
+      allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isValidId(uid)
+        && isOwner(uid)
+        && isValidUserProfile(incoming(), uid)
+        && incoming().role == 'user'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(uid)
+        && isValidUserProfile(incoming(), uid)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isOwner(uid)
+            && incoming().role == existing().role
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'displayName', 'photoURL', 'theme', 'defaultCrawlLimit',
+              'defaultCrawlDepth', 'emailAlerts', 'webhookAlerts', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(uid) && (isOwner(uid) || isAdmin());
+    }
+
+    match /scans/{scanId} {
+      allow get: if isValidId(scanId) && isVerifiedUser() && (existing().ownerUid == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isValidId(scanId)
+        && isVerifiedUser()
+        && isValidWebsiteScan(incoming(), scanId)
+        && incoming().startedAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(scanId)
+        && isVerifiedUser()
+        && isValidWebsiteScan(incoming(), scanId)
+        && incoming().scanId == existing().scanId
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().targetUrl == existing().targetUrl
+        && incoming().normalizedDomain == existing().normalizedDomain
+        && incoming().startedAt == existing().startedAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            existing().ownerUid == request.auth.uid && (
+              (!(existing().status in ['completed', 'failed', 'cancelled'])
+                && incoming().diff(existing()).affectedKeys().hasOnly([
+                  'status', 'currentStage', 'progressPercent', 'coverage', 'scores',
+                  'summary', 'metrics', 'findingsCount', 'completedAt', 'updatedAt'
+                ])) ||
+              (!(existing().status in ['completed', 'failed', 'cancelled'])
+                && incoming().status == 'cancelled'
+                && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'currentStage', 'updatedAt'])) ||
+              (existing().status in ['completed', 'partially_completed']
+                && incoming().status == existing().status
+                && incoming().diff(existing()).affectedKeys().hasOnly(['aiExplanation', 'updatedAt']))
+            )
+          )
+        );
+      allow delete: if isValidId(scanId) && isVerifiedUser() && (existing().ownerUid == request.auth.uid || isAdmin());
+    }
+
+    match /scanFindings/{findingId} {
+      allow get: if isValidId(findingId) && isVerifiedUser() && (existing().ownerUid == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isValidId(findingId)
+        && isVerifiedUser()
+        && isValidScanFinding(incoming(), findingId)
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/scans/$(incoming().scanId))
+        && get(/databases/$(database)/documents/scans/$(incoming().scanId)).data.ownerUid == request.auth.uid;
+      allow update: if isValidId(findingId)
+        && isVerifiedUser()
+        && isValidScanFinding(incoming(), findingId)
+        && incoming().findingId == existing().findingId
+        && incoming().scanId == existing().scanId
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().createdAt == existing().createdAt
+        && (
+          isAdmin() ||
+          (existing().ownerUid == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['status']))
+        );
+      allow delete: if isValidId(findingId) && isVerifiedUser() && (existing().ownerUid == request.auth.uid || isAdmin());
+    }
+
+    match /integrations/{integrationId} {
+      allow get: if isValidId(integrationId) && isVerifiedUser() && (existing().ownerUid == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isValidId(integrationId)
+        && isVerifiedUser()
+        && isValidIntegrationRecord(incoming(), integrationId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(integrationId)
+        && isVerifiedUser()
+        && isValidIntegrationRecord(incoming(), integrationId)
+        && incoming().integrationId == existing().integrationId
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().provider == existing().provider
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            existing().ownerUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'connectionStatus', 'permissions', 'accountLabel', 'configMeta', 'lastSyncAt', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(integrationId) && isVerifiedUser() && (existing().ownerUid == request.auth.uid || isAdmin());
+    }
+
+    match /verifiedDomains/{domainId} {
+      allow get: if isValidId(domainId) && isVerifiedUser() && (existing().ownerUid == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isValidId(domainId)
+        && isVerifiedUser()
+        && isValidVerifiedDomain(incoming(), domainId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(domainId)
+        && isVerifiedUser()
+        && isValidVerifiedDomain(incoming(), domainId)
+        && incoming().domainId == existing().domainId
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().domain == existing().domain
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            existing().ownerUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['method', 'challengeToken', 'verified', 'verifiedAt', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(domainId) && isVerifiedUser() && (existing().ownerUid == request.auth.uid || isAdmin());
+    }
+
+    match /monitoringTargets/{targetId} {
+      allow get: if isValidId(targetId) && isVerifiedUser() && (existing().ownerUid == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isValidId(targetId)
+        && isVerifiedUser()
+        && isValidMonitoringTarget(incoming(), targetId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(targetId)
+        && isVerifiedUser()
+        && isValidMonitoringTarget(incoming(), targetId)
+        && incoming().targetId == existing().targetId
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().domain == existing().domain
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            existing().ownerUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'frequencyMinutes', 'enabled', 'lastStatus', 'lastHttpStatus', 'lastResponseTimeMs',
+              'sslExpiryDays', 'alertEmailEnabled', 'webhookUrl', 'lastCheckAt', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(targetId) && isVerifiedUser() && (existing().ownerUid == request.auth.uid || isAdmin());
+    }
+
+    match /monitoringEvents/{eventId} {
+      allow get: if isValidId(eventId) && isVerifiedUser() && (existing().ownerUid == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isValidId(eventId)
+        && isVerifiedUser()
+        && isValidMonitoringEvent(incoming(), eventId)
+        && incoming().timestamp == request.time
+        && exists(/databases/$(database)/documents/monitoringTargets/$(incoming().targetId))
+        && get(/databases/$(database)/documents/monitoringTargets/$(incoming().targetId)).data.ownerUid == request.auth.uid;
+      allow update: if false;
+      allow delete: if isValidId(eventId) && isVerifiedUser() && (existing().ownerUid == request.auth.uid || isAdmin());
+    }
+
+    match /backupStatus/{recordId} {
+      allow get: if isValidId(recordId) && isVerifiedUser() && (existing().ownerUid == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isValidId(recordId)
+        && isVerifiedUser()
+        && isValidBackupStatusRecord(incoming(), recordId)
+        && incoming().createdAt == request.time
+        && incoming().lastCheckedAt == request.time;
+      allow update: if isValidId(recordId)
+        && isVerifiedUser()
+        && isValidBackupStatusRecord(incoming(), recordId)
+        && incoming().recordId == existing().recordId
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().provider == existing().provider
+        && incoming().createdAt == existing().createdAt
+        && incoming().lastCheckedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            existing().ownerUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'verifiedStatus', 'lastBackupAt', 'frequency', 'retentionPolicy',
+              'encrypted', 'storageLocation', 'evidence', 'lastCheckedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(recordId) && isVerifiedUser() && (existing().ownerUid == request.auth.uid || isAdmin());
+    }
+  }
+}

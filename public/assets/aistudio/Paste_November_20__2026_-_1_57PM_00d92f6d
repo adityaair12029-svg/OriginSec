@@ -1,0 +1,1712 @@
+# MASTER BUILD PROMPT — ORIGINSEC
+## Autonomous Full-Spectrum Website Audit & Security Intelligence Platform
+
+**PROJECT OWNER:** Aditya Choudhary  
+**FOUNDER:** Aditya Choudhary  
+**PARENT COMPANY:** DopTails  
+**PRODUCT NAME:** OriginSec  
+**PLATFORM:** Web Application  
+**DEVELOPMENT ENVIRONMENT:** Google AI Studio — Build Mode  
+**SOURCE CODE:** GitHub  
+**DEPLOYMENT:** Vercel  
+**PRIMARY GOAL:** Build a real, professional, production-ready website auditing platform.
+
+---
+
+# 1. YOUR ROLE
+
+Act as a senior full-stack software architect, cybersecurity engineer, frontend developer, backend developer, database architect, UI/UX designer, DevOps engineer, QA engineer, and technical product manager.
+
+You are responsible for building OriginSec as a complete, functional, production-oriented application.
+
+Do not create just a landing page or a static UI demo.
+
+Build a real application with:
+- A fully working frontend.
+- A functional backend.
+- Secure API routes.
+- A persistent database.
+- Google authentication.
+- Real website analysis.
+- Real audit reports.
+- Scan history.
+- Detailed recommendations.
+- Security and performance checks.
+- Authorized infrastructure integrations.
+- Backup and monitoring integrations.
+- Deployment-ready configuration.
+
+Do not use fake scanning results, random scores, fabricated vulnerabilities, hardcoded website reports, or imaginary monitoring information.
+
+Every result shown to users must come from an actual measurement, a verified integration, or clearly labelled analysis.
+
+If something cannot be checked, display **Not assessed**, **Unavailable**, or **Integration required** instead of inventing results.
+
+Do not stop after generating the initial interface. Continue building the complete application.
+
+# 2. BRAND IDENTITY
+
+Product name: OriginSec
+
+Company: DopTails
+
+Founder: Aditya Choudhary
+
+Brand positioning:
+
+OriginSec is a website security, quality, performance, and infrastructure auditing platform.
+
+Suggested main headline:
+
+"Find every weakness before anyone else does."
+
+Subheading:
+
+"Audit your website's security, frontend, backend, API posture, performance, accessibility, and infrastructure. Get evidence-backed findings and practical recommendations in one place."
+
+Footer branding:
+
+"ORIGINSEC — Real-time diagnostics, no fluff."
+
+Additional footer text:
+
+"Founded by Aditya Choudhary | A DopTails Company"
+
+Use professional, trustworthy language.
+
+Do not claim OriginSec can automatically access private server code, databases, backup storage, or hosting accounts merely from a public website URL.
+
+# 3. DESIGN REFERENCE — FOLLOW MY UPLOADED SCREENSHOTS
+
+I have uploaded multiple OriginSec screenshots.
+
+Treat these images as the primary visual references.
+
+The final application must closely follow their design language, layout, proportions, spacing, typography, card structures, and reporting experience.
+
+Do not replace the design with an unrelated cybersecurity dashboard template.
+
+## 3.1 Overall visual identity
+
+Use a premium minimalist aesthetic.
+
+Dark mode:
+- Almost pure black background.
+- White headings.
+- Muted grey descriptions.
+- Subtle grey borders.
+- Bright green accent.
+- Dark cards.
+- Soft transitions.
+
+Suggested colours:
+- Main background: #050505
+- Card background: #0B0B0B
+- Border: #252525
+- Main text: #FFFFFF
+- Secondary text: #929292
+- Accent green: #00E69A
+
+Light mode:
+- Warm off-white background.
+- White report cards.
+- Near-black text.
+- Muted warm-grey descriptions.
+- Thin beige borders.
+- Green accent.
+
+Suggested colours:
+- Main background: #F7F5EF
+- Card background: #FFFFFF
+- Main text: #151515
+- Secondary text: #777267
+- Border: #E7E0D3
+- Accent green: #008C55
+
+Implement a fully working Light Mode / Dark Mode toggle.
+
+Save the user's theme preference.
+
+## 3.2 Header
+
+Create a clean sticky header.
+
+Left side:
+ORIGIN SEC ●
+
+Use white/black text according to the theme. The SEC portion and small status dot should use green.
+
+Right side:
+- Dashboard
+- Scan History
+- Integrations
+- Profile
+- Light/Dark Mode toggle
+
+For unauthenticated visitors, show:
+- Sign in with Google
+- Theme toggle
+
+Keep the header minimal and responsive.
+
+## 3.3 Homepage hero
+
+Use the screenshot's centred hero composition.
+
+Small uppercase eyebrow:
+
+"AUTONOMOUS FULL-SPECTRUM WEBSITE AUDIT"
+
+Main heading:
+
+"Find every weakness before anyone else does."
+
+Description:
+
+"Paste a website URL. OriginSec analyses the publicly observable website and evaluates its security, frontend, performance, content quality, and available infrastructure signals — with evidence-backed fixes for every issue it finds."
+
+Below it, create a large rounded URL input container.
+
+Placeholder:
+
+"https://example.com"
+
+Button:
+
+"Analyze target"
+
+The URL input must validate URLs and reject invalid protocols.
+
+Require users to confirm they own the website or have permission to assess it.
+
+## 3.4 Four primary category cards
+
+Create four cards matching the reference screenshots.
+
+CARD 1 — Cybersecurity & Hardening
+
+Description:
+"SSL/TLS posture, HTTP security headers, cookie flags, DNS security signals, and externally observable security configuration."
+
+CARD 2 — Front-End & UI/UX
+
+Description:
+"DOM structure, page metadata, responsive layout signals, accessibility, render-blocking resources, and frontend performance."
+
+CARD 3 — Back-End & Architecture
+
+Description:
+"Observable server response time, API health, caching directives, HTTP behaviour, and connected infrastructure configuration."
+
+CARD 4 — Product & Engagement
+
+Description:
+"CTA clarity, navigation structure, content quality, usability, accessibility, and improvement recommendations."
+
+Cards must have subtle hover animations and responsive sizing.
+
+# 4. APPLICATION ARCHITECTURE
+
+Build a maintainable application that can be pushed to GitHub and deployed to Vercel.
+
+Preferred stack:
+
+Frontend:
+- Next.js App Router.
+- React.
+- TypeScript.
+- Tailwind CSS.
+- Accessible reusable components.
+- Lucide icons.
+
+Backend:
+- Next.js server-side API routes.
+- Node.js runtime.
+- Server-side validation.
+- Secure authentication verification.
+- Background or chunked scan execution.
+
+Database:
+- Firebase Firestore.
+
+Authentication:
+- Firebase Authentication.
+- Google Sign-In.
+
+Optional services:
+- Gemini API for explaining verified findings.
+- Google PageSpeed Insights integration.
+- Authorized hosting-provider integrations.
+- Authorized backup-provider integrations.
+- Authorized monitoring integrations.
+
+Important architecture requirements:
+
+1. Use supported, stable package versions.
+2. Use TypeScript throughout.
+3. Keep frontend and backend logically separated.
+4. Keep API credentials exclusively on the server.
+5. Never expose private API keys to browser JavaScript.
+6. Never commit secrets to GitHub.
+7. Use Node.js runtime for scanner routes that require Node networking APIs.
+8. Do not depend on Google AI Studio's private runtime after deployment.
+9. Make the application compatible with standard Vercel deployments.
+10. Use persistent storage rather than in-memory application state.
+
+If Google AI Studio requires a different initial project scaffold, maintain equivalent functionality and make the exported project compatible with GitHub and Vercel.
+
+# 5. REAL WEBSITE SCANNER
+
+This is the most important feature.
+
+OriginSec must inspect a real target website instead of displaying prewritten sample reports.
+
+Implement a proper scanning pipeline.
+
+## 5.1 Scan workflow
+
+When someone enters a URL:
+
+1. Validate the URL.
+2. Validate the hostname.
+3. Confirm the user has accepted the authorization statement.
+4. Reject private, local, loopback, link-local, reserved, and cloud metadata destinations.
+5. Resolve DNS and verify destination addresses.
+6. Check every redirect destination.
+7. Request the publicly accessible website using safe, bounded HTTP requests.
+8. Record real response information.
+9. Inspect relevant response headers.
+10. Analyse the homepage HTML.
+11. Inspect a limited number of same-origin linked pages.
+12. Gather frontend and performance signals.
+13. Calculate scores from actual observations.
+14. Generate evidence-backed findings.
+15. Save the completed or partially completed report.
+16. Display the report to the user.
+
+Do not make the browser directly access private infrastructure.
+
+Use secure server-side scanning with SSRF protection.
+
+The scanner must:
+- Allow only HTTP and HTTPS.
+- Restrict normal public scans to standard web ports.
+- Apply strict timeouts.
+- Apply response-size limits.
+- Limit concurrent requests.
+- Limit crawl depth and page count.
+- Prevent infinite redirect loops.
+- Prevent requests to internal networks.
+- Never forward a user's browser cookies to the target.
+- Never forward OriginSec authentication tokens to a target.
+- Avoid downloading executable files.
+- Redact sensitive values from stored evidence.
+
+Respect robots.txt and implement polite crawl behaviour.
+
+For the initial public scan, use a conservative crawl budget such as a maximum of 20 pages and a maximum crawl depth of 2. Make these limits configurable.
+
+## 5.2 Real scan progress
+
+Show a professional live progress interface.
+
+Possible stages:
+
+- Validating target
+- Checking DNS
+- Checking HTTPS/TLS
+- Inspecting response headers
+- Analysing homepage
+- Inspecting linked pages
+- Checking frontend structure
+- Analysing performance
+- Evaluating content quality
+- Preparing findings
+- Generating report
+
+Show actual task progress.
+
+Do not show fake progress percentages or pretend that a scan has completed before it has.
+
+Support these job states:
+
+- Pending
+- Queued
+- Running
+- Partially completed
+- Completed
+- Failed
+- Cancelled
+
+Persist scan progress so that the user can refresh the browser without losing the report.
+
+Use bounded, resumable scan tasks rather than depending on one extremely long serverless function invocation.
+
+# 6. CYBERSECURITY & HARDENING AUDIT
+
+Create an actual external security posture assessment.
+
+Inspect the following where technically observable.
+
+## 6.1 HTTPS and TLS
+
+Check:
+- Whether HTTPS is available.
+- Whether HTTP redirects to HTTPS.
+- TLS connection availability.
+- Certificate validity.
+- Certificate expiry information when available.
+- Certificate hostname match.
+- Certificate issuer.
+- Certificate chain verification.
+- Observable protocol negotiation.
+- Mixed-content references in scanned HTML.
+
+Do not claim that an unavailable TLS check passed.
+
+## 6.2 HTTP security headers
+
+Inspect:
+
+- Strict-Transport-Security
+- Content-Security-Policy
+- X-Content-Type-Options
+- X-Frame-Options
+- Referrer-Policy
+- Permissions-Policy
+- Cross-Origin-Opener-Policy
+- Cross-Origin-Resource-Policy
+- Cross-Origin-Embedder-Policy
+
+For each finding, provide:
+
+- Header name.
+- Actual observed value.
+- Whether it is missing, weak, or appropriately configured.
+- Security impact.
+- Severity.
+- Recommended configuration.
+- Fix example.
+- Verification instructions.
+
+Do not treat every missing header as a confirmed exploitable vulnerability.
+
+Evaluate the context.
+
+## 6.3 Cookie security
+
+Inspect publicly observable Set-Cookie response attributes.
+
+Check:
+- Secure.
+- HttpOnly.
+- SameSite.
+- Cookie scope.
+- Expiration attributes.
+
+Never display session cookie values or authentication secrets in reports.
+
+## 6.4 DNS security signals
+
+Where supported, inspect:
+- DNS resolution.
+- A and AAAA records.
+- CNAME.
+- MX records.
+- TXT.
+- SPF.
+- DMARC.
+- CAA.
+- DNSSEC availability.
+
+Separate DNS observations from verified configuration conclusions.
+
+## 6.5 Other external security observations
+
+Assess:
+- Publicly exposed security.txt.
+- Publicly discoverable version banners.
+- HTTP redirect behaviour.
+- Information disclosure in response headers.
+- Public robots.txt configuration.
+- Public sitemap availability.
+- Unexpected server error responses.
+
+Do not perform exploitation or destructive tests.
+
+Do not run brute-force attempts, credential attacks, injection payloads, denial-of-service tests, authentication bypass attempts, or intrusive endpoint discovery.
+
+OriginSec is an authorized defensive auditing platform.
+
+# 7. FRONTEND & UI/UX AUDIT
+
+Analyse the real HTML and publicly accessible frontend resources.
+
+Inspect:
+
+- Page title.
+- Meta description.
+- Viewport meta tag.
+- HTML language.
+- Heading structure.
+- Heading hierarchy.
+- DOM node count where measurable.
+- Image alt attributes.
+- Missing image dimensions.
+- Lazy-loading signals.
+- Broken internal links.
+- Broken image references.
+- Empty links.
+- Form label associations.
+- Button names.
+- Navigation structure.
+- Semantic HTML.
+- Accessibility landmarks.
+- Open Graph metadata.
+- Canonical links.
+- Robots metadata.
+- CSS and JavaScript resource counts.
+- Large HTML responses.
+- Potential render-blocking resource references.
+
+Distinguish between static HTML measurements and fully rendered browser measurements.
+
+Where a real browser-based audit is not available, do not describe an HTML-only result as a complete browser-rendered result.
+
+## 7.1 Performance analysis
+
+Measure:
+- DNS lookup time where available.
+- Connection time where available.
+- TLS handshake time where available.
+- Time to first byte.
+- Total response time.
+- Response status.
+- Downloaded HTML size.
+- Redirect count.
+- Cache-related headers.
+- Compression signals.
+
+Add an optional Google PageSpeed Insights integration for Lighthouse results.
+
+When configured, retrieve actual supported Lighthouse measurements, including:
+
+- Performance score.
+- Accessibility score.
+- Best Practices score.
+- SEO score.
+- Largest Contentful Paint.
+- Cumulative Layout Shift.
+- Interaction to Next Paint, when field data is available.
+- First Contentful Paint.
+- Speed Index.
+- Total Blocking Time.
+
+Explain whether a metric is laboratory data or field data.
+
+Do not fabricate Core Web Vitals.
+
+# 8. BACK-END & API AUDIT
+
+This category requires special handling.
+
+A public website URL does not reveal its private backend source code or internal API infrastructure.
+
+Create two separate modes.
+
+### MODE A: Public External Assessment
+
+Without website ownership verification, check only publicly observable behaviour.
+
+Assess:
+- HTTP response codes.
+- Server response latency.
+- Public endpoint availability when supplied.
+- Public API response status when supplied.
+- Content-type behaviour.
+- CORS response configuration.
+- Cache-Control.
+- Observable server headers.
+- Error response behaviour.
+- Publicly documented API information.
+
+Do not guess or enumerate private API endpoints.
+
+### MODE B: Verified Owner Assessment
+
+After ownership verification, enable additional safe checks for explicitly supplied or authorized endpoints.
+
+Support:
+- User-provided API base URL.
+- User-provided API endpoint list.
+- OpenAPI/Swagger document upload or URL.
+- Documented endpoint availability.
+- Response status consistency.
+- Response-time measurements.
+- Content-type checks.
+- Security-header review.
+- Authentication configuration review based on provided documentation.
+- Safe schema validation.
+
+Use only non-destructive requests.
+
+Do not attempt to bypass authentication or perform injection attacks.
+
+## 8.1 API report
+
+Each API finding should include:
+
+- Endpoint.
+- HTTP method.
+- Observed status code.
+- Response time.
+- Timestamp.
+- Evidence.
+- Severity.
+- Description.
+- Recommended improvement.
+- Verification status.
+
+Never store real access tokens in scan reports.
+
+# 9. DATABASE SECURITY AUDIT
+
+Add a dedicated Database Security section.
+
+However, do not pretend that a public URL gives OriginSec access to a private database.
+
+Provide secure optional integrations for supported database services.
+
+Initial integration architecture should allow:
+- Firebase.
+- Supabase.
+- PostgreSQL-compatible databases through a secure owner-controlled connection.
+- Other providers through future integration modules.
+
+For database checks, use explicit owner authorization and read-only access wherever possible.
+
+Possible assessments:
+- Connection security.
+- Public exposure configuration.
+- Database access policy.
+- Authentication configuration.
+- Permission structure.
+- Backup availability when the provider exposes it.
+- Encryption configuration when verifiable.
+- Unnecessary public access.
+- Access-control recommendations.
+
+Never run destructive queries.
+
+Never modify the target database during an audit.
+
+Never expose database credentials in frontend code.
+
+Do not save raw database passwords or connection strings in reports.
+
+# 10. SECURE HOSTING AUDIT
+
+Create a dedicated Hosting & Infrastructure category.
+
+Support future or optional read-only integrations for:
+
+- Vercel.
+- Netlify.
+- Cloudflare.
+- AWS.
+- Google Cloud.
+- Other supported infrastructure providers.
+
+With no connected provider account, display:
+
+"Hosting configuration cannot be fully verified from a public website URL."
+
+With an authorized provider integration, inspect available settings such as:
+
+- HTTPS configuration.
+- Domain configuration.
+- Deployment status.
+- Environment-variable configuration metadata.
+- Security-related platform settings.
+- Deployment history.
+- Available edge security features.
+- Available access-control settings.
+
+Never reveal environment-variable values.
+
+Use read-only integrations by default.
+
+Require explicit confirmation before any future configuration-changing feature.
+
+# 11. BACKUP & DISASTER RECOVERY
+
+Create a separate Backup & Recovery dashboard.
+
+This must not be a decorative or fake feature.
+
+Support authorized integrations that expose actual backup information.
+
+Show available information such as:
+
+- Backup provider.
+- Backup status.
+- Last successful backup.
+- Backup frequency.
+- Retention policy.
+- Backup encryption status.
+- Backup storage location, if exposed.
+- Last verification date.
+- Restore-test status, if available.
+- Warnings about missing backup evidence.
+
+If OriginSec has no backup integration, show:
+
+"Backup status unavailable — connect an authorized backup provider."
+
+Do not show a green backup status without verified evidence.
+
+Do not automatically delete, overwrite, restore, or modify backups.
+
+A future backup execution feature must require explicit authorization and confirmation.
+
+# 12. CONTINUOUS MONITORING
+
+Create a Monitoring section.
+
+Allow owners to configure monitoring for their verified websites.
+
+Possible monitoring checks:
+
+- Website availability.
+- HTTP status.
+- SSL certificate expiry.
+- DNS resolution.
+- Response time.
+- Unexpected downtime.
+- Security-header changes.
+- Expired certificates.
+- Important scan regression.
+
+Support configurable check frequency according to available platform limits.
+
+Show:
+- Current monitoring status.
+- Last successful check.
+- Recent incidents.
+- Incident history.
+- Response-time history.
+- Alert configuration.
+
+Monitoring must use an actual scheduled execution service.
+
+Do not use a browser timer as production monitoring.
+
+Allow the user to pause or remove a monitoring target.
+
+Future integration:
+- Email notifications.
+- Webhook notifications.
+- Other supported notification providers.
+
+Store monitoring data in the database.
+
+# 13. GOOGLE LOGIN & USER AUTHENTICATION
+
+Google Sign-In is compulsory.
+
+Use Firebase Authentication.
+
+Implement:
+- Sign in with Google.
+- Sign out.
+- Authentication state handling.
+- User profile.
+- User account settings.
+- Protected dashboard routes.
+- Session verification.
+- User-specific scan history.
+- User-specific monitoring records.
+- User-specific integration configuration.
+
+After Google login, display the user's available profile information, such as name, profile image, and email.
+
+Use the Firebase Admin SDK on the server to verify authentication tokens.
+
+Never trust a user ID supplied by the browser without server verification.
+
+Every database query must enforce the authenticated user's ownership.
+
+Users must not be able to access another user's:
+- Reports.
+- Scan history.
+- Integrations.
+- Monitoring configuration.
+- Personal settings.
+
+Implement secure Firestore security rules.
+
+The owner/founder role must be managed securely through server-controlled configuration and verified authorization, not by a frontend-only condition.
+
+# 14. DASHBOARD
+
+After successful login, create a premium dashboard.
+
+Dashboard sections:
+
+1. Overview.
+2. New Website Scan.
+3. Scan History.
+4. Security Reports.
+5. API Audits.
+6. Database Audits.
+7. Infrastructure.
+8. Backup & Recovery.
+9. Monitoring.
+10. Integrations.
+11. Settings.
+
+Display real data only.
+
+Dashboard overview cards can include:
+
+- Total scans.
+- Websites monitored.
+- Open findings.
+- High-severity findings.
+- Completed scans.
+- Latest scan.
+- Latest monitoring status.
+
+When no records exist, show a clean empty state rather than random numbers.
+
+# 15. DETAILED AUDIT REPORT
+
+The audit report must closely resemble my screenshots.
+
+At the top show:
+
+"Audit report — example.com"
+
+Under it:
+- Actual scanned URL.
+- Scan ID.
+- Scan timestamp.
+- Scan status.
+- Scan coverage.
+- Visit site link.
+
+Add a professional executive summary.
+
+Example style:
+
+"The external assessment identified several security configuration improvements and frontend optimization opportunities. Some infrastructure and database checks remain unverified because no owner integration is connected."
+
+This text must be dynamically generated from actual findings.
+
+## 15.1 Category scores
+
+Create professional circular score indicators.
+
+The initial four categories are:
+
+- Security.
+- Front-End.
+- Back-End.
+- Engagement.
+
+Add separate extended sections for:
+- API.
+- Database.
+- Hosting.
+- Backup.
+- Monitoring.
+
+Use these rules:
+
+1. Scores must be calculated from actual assessed checks.
+2. Do not assign a passing score to an untested category.
+3. Show assessment coverage.
+4. Mark unavailable categories as Not assessed.
+5. Do not count missing evidence as a successful test.
+6. Display the scoring methodology.
+
+Use severity levels:
+
+- Critical.
+- High.
+- Medium.
+- Low.
+- Informational.
+- Passed.
+
+## 15.2 Finding cards
+
+Use the visual design from the reference screenshots.
+
+Every finding card must show:
+
+- Finding title.
+- Severity badge.
+- Description.
+- Evidence.
+- Affected URL.
+- Observed value.
+- Security or quality impact.
+- Recommended fix.
+- Configuration example where suitable.
+- Verification instructions.
+- Finding status.
+
+Example of a genuine finding structure:
+
+Title: Missing Content Security Policy
+
+Severity: High, only if supported by the assessment methodology and evidence.
+
+Description:
+"The scanned HTTP response did not include a Content-Security-Policy header."
+
+Evidence:
+"Content-Security-Policy: Not present in the observed response."
+
+Impact:
+"A suitable Content Security Policy can help reduce the impact of certain script-injection attacks."
+
+Fix:
+"Design and deploy a CSP that matches the application's required resource origins. Start with report-only mode and validate compatibility before enforcement."
+
+Verification:
+"Repeat the header assessment and confirm that the expected policy is returned."
+
+Do not blindly recommend copying unsafe security-header values.
+
+# 16. RECOMMENDATION ENGINE
+
+Create a useful recommendation engine.
+
+Each recommendation should answer:
+
+1. What was detected?
+2. Why does it matter?
+3. How serious is it?
+4. What should be changed?
+5. Where should it be changed?
+6. How can it be fixed?
+7. How can the fix be verified?
+
+Group recommendations into:
+
+- Fix immediately.
+- Fix soon.
+- Optimization opportunities.
+- Best practices.
+- Long-term improvements.
+
+Provide practical technical fixes.
+
+For example:
+- Reverse-proxy configuration changes.
+- Web-server header configuration.
+- Frontend HTML improvements.
+- Image optimization recommendations.
+- Caching improvements.
+- Secure cookie recommendations.
+- API configuration improvements.
+- Database permission improvements.
+
+Never tell a user that OriginSec has repaired their website unless an explicitly authorized, functioning remediation integration has actually made and verified that change.
+
+Initial version should provide recommendations, not automatically modify external websites.
+
+# 17. AI-POWERED REPORT EXPLANATION
+
+Integrate Gemini optionally.
+
+Use the AI model to:
+- Explain technical findings in understandable language.
+- Summarize actual scan results.
+- Explain why a problem matters.
+- Suggest practical remediation steps.
+- Organize improvements by priority.
+- Prepare a technical summary for developers.
+- Prepare a simpler report for website owners.
+
+Critical rules:
+
+Gemini must not invent scan results.
+
+Pass only collected, sanitized scan evidence to Gemini.
+
+Do not send passwords, access tokens, private keys, session cookies, or database credentials to the model.
+
+The deterministic scanner must remain the source of truth.
+
+Clearly distinguish:
+- Observed fact.
+- Calculated metric.
+- AI-generated explanation.
+- Unverified recommendation.
+
+# 18. SCAN HISTORY
+
+Create a complete scan history page.
+
+Show:
+- Website.
+- Scan date.
+- Scan status.
+- Security score.
+- Frontend score.
+- Backend score.
+- Engagement score.
+- Number of findings.
+- Report link.
+
+Add:
+- Search.
+- Filtering.
+- Sorting.
+- Pagination.
+- Delete scan history.
+- Open previous report.
+- Compare two reports.
+- Rescan target.
+
+Store history per authenticated account.
+
+Do not allow a user to read another user's report by changing a report ID.
+
+# 19. REPORT EXPORT
+
+Implement real report exports.
+
+Supported formats:
+
+- PDF.
+- CSV.
+- JSON.
+
+PDF report should contain:
+- OriginSec logo and brand.
+- Target URL.
+- Scan ID.
+- Scan timestamp.
+- Executive summary.
+- Assessment coverage.
+- Category scores.
+- Findings.
+- Evidence.
+- Recommended fixes.
+- Methodology.
+- Limitations.
+- Disclaimer.
+
+Make the PDF professional and printable.
+
+CSV should export structured finding data.
+
+JSON should export the complete report data using a documented schema.
+
+# 20. INTEGRATION CENTRE
+
+Create a premium integrations page.
+
+Each integration card should have:
+
+- Provider logo or icon.
+- Provider name.
+- Purpose.
+- Connection status.
+- Connect button.
+- Disconnect option.
+- Permission description.
+- Last successful sync.
+
+Initial integration architecture:
+
+1. Firebase Authentication.
+2. Firebase Firestore.
+3. Google PageSpeed Insights.
+4. Gemini API.
+
+Prepare secure integration interfaces for future:
+- Vercel.
+- Netlify.
+- Cloudflare.
+- AWS.
+- Google Cloud.
+- Supabase.
+- PostgreSQL-compatible services.
+- Backup providers.
+- Monitoring providers.
+
+Do not show an integration as connected unless an actual successful connection has been verified.
+
+# 21. SETTINGS
+
+Create these settings pages:
+
+- Profile.
+- Account.
+- Security.
+- Appearance.
+- Notification preferences.
+- Scan preferences.
+- Privacy.
+- Connected integrations.
+- Data management.
+
+Allow users to:
+- Change theme.
+- View profile.
+- Sign out.
+- Delete saved scan history.
+- Disconnect supported integrations.
+- Configure monitoring preferences.
+- Request account deletion.
+
+# 22. FOUNDER AND COMPANY INFORMATION
+
+Create a professional About section.
+
+Product:
+OriginSec
+
+Founder:
+Aditya Choudhary
+
+Parent Company:
+DopTails
+
+Suggested company statement:
+
+"OriginSec is built to make website security, quality analysis, and infrastructure visibility easier to understand and act upon. Our goal is to help website owners discover weaknesses, understand their impact, and improve their digital infrastructure using real evidence."
+
+Footer:
+
+"OriginSec by DopTails."
+
+"Founded by Aditya Choudhary."
+
+Do not fabricate company addresses, registration numbers, certifications, or business achievements.
+
+# 23. DATABASE STRUCTURE
+
+Design a scalable Firestore data structure.
+
+Suggested collections:
+
+users
+- uid
+- displayName
+- email
+- photoURL
+- createdAt
+- updatedAt
+- role
+
+scans
+- scanId
+- ownerUid
+- targetUrl
+- normalizedDomain
+- status
+- startedAt
+- completedAt
+- coverage
+- scores
+- summary
+- scannerVersion
+
+scanFindings
+- findingId
+- scanId
+- ownerUid
+- category
+- title
+- severity
+- description
+- evidence
+- impact
+- recommendation
+- remediation
+- verification
+- createdAt
+
+integrations
+- integrationId
+- ownerUid
+- provider
+- connectionStatus
+- permissions
+- lastSyncAt
+
+monitoringTargets
+- targetId
+- ownerUid
+- domain
+- frequency
+- enabled
+- createdAt
+- lastCheckAt
+
+monitoringEvents
+- eventId
+- ownerUid
+- targetId
+- status
+- responseTime
+- details
+- timestamp
+
+backupStatus
+- recordId
+- ownerUid
+- provider
+- verifiedStatus
+- lastBackupAt
+- evidence
+- lastCheckedAt
+
+Add suitable database indexes and access rules.
+
+Keep scan reports separate from private integration secrets.
+
+Never save secrets in publicly readable documents.
+
+# 24. API ROUTES
+
+Create clearly structured, validated backend routes.
+
+Suggested routes:
+
+Authentication:
+- /api/auth/session
+- /api/auth/profile
+
+Scanning:
+- /api/scans
+- /api/scans/[scanId]
+- /api/scans/[scanId]/progress
+- /api/scans/[scanId]/cancel
+- /api/scans/[scanId]/rescan
+- /api/scans/[scanId]/export
+
+Ownership:
+- /api/ownership/challenge
+- /api/ownership/verify
+
+Integrations:
+- /api/integrations
+- /api/integrations/[provider]/connect
+- /api/integrations/[provider]/status
+- /api/integrations/[provider]/disconnect
+
+Monitoring:
+- /api/monitoring
+- /api/monitoring/[targetId]
+- /api/monitoring/[targetId]/history
+
+Backup:
+- /api/backups
+- /api/backups/status
+
+Every route must implement:
+- Authentication where required.
+- Authorization.
+- Input validation.
+- Safe error handling.
+- Request limits.
+- Logging without secrets.
+- Proper HTTP status codes.
+
+Never trust client-provided ownership IDs.
+
+# 25. SECURITY OF ORIGINSEC ITSELF
+
+OriginSec is a security product, so its own security must be a priority.
+
+Protect OriginSec against:
+
+- Server-side request forgery.
+- DNS rebinding.
+- Open redirects.
+- Cross-site scripting.
+- Cross-site request forgery.
+- Broken access control.
+- Insecure direct object references.
+- Injection vulnerabilities.
+- Sensitive information disclosure.
+- Authentication weaknesses.
+- Rate-limit abuse.
+- Unrestricted resource consumption.
+- Improper error handling.
+
+Use:
+- Zod or equivalent server-side input validation.
+- Secure authentication checks.
+- Firestore access rules.
+- Strict HTTP timeouts.
+- Destination IP verification.
+- Redirect validation.
+- Rate limits.
+- Secure response headers.
+- Correct CORS configuration.
+- Safe logging.
+- Environment-variable validation.
+
+Never allow the scanner to access:
+- localhost.
+- 127.0.0.0/8.
+- Private IPv4 ranges.
+- Private IPv6 ranges.
+- Link-local addresses.
+- Cloud metadata services.
+- Internal network addresses.
+- Reserved non-public destinations.
+
+Repeat the network safety checks after every redirect and DNS resolution.
+
+Use per-user scan limits and request budgets.
+
+# 26. VISUAL REPORT CHARTS
+
+Use professional charts and visual indicators.
+
+Include:
+- Circular category scores.
+- Severity distribution.
+- Findings by category.
+- Performance measurements.
+- Monitoring timeline.
+- Scan comparison chart.
+- Assessment coverage chart.
+
+Charts must use actual stored results.
+
+Show empty states when no data is available.
+
+Do not generate random chart data.
+
+# 27. RESPONSIVE DESIGN
+
+Support:
+
+- Desktop.
+- Laptop.
+- Tablet.
+- Mobile.
+
+Ensure:
+- Header does not overflow.
+- Cards stack naturally.
+- Reports remain readable.
+- Tables are responsive.
+- Buttons have suitable touch sizes.
+- Text remains readable.
+- Scan progress is visible on mobile.
+- Forms work with keyboards and screen readers.
+
+The design must maintain the premium reference aesthetic on every screen size.
+
+# 28. ACCESSIBILITY
+
+Implement:
+- Semantic HTML.
+- Keyboard navigation.
+- Visible focus indicators.
+- Proper form labels.
+- Accessible dialogs.
+- Screen-reader labels.
+- Sufficient text contrast.
+- Reduced-motion support.
+- Accessible status announcements.
+
+Do not communicate severity using colour alone.
+
+# 29. ERROR HANDLING
+
+Build professional error states for:
+
+- Invalid URL.
+- Unsupported protocol.
+- Website unavailable.
+- DNS failure.
+- TLS connection failure.
+- Connection timeout.
+- Redirect limit exceeded.
+- Unsupported response.
+- Request blocked by the destination.
+- Scan partially completed.
+- Scan failed.
+- Authentication failure.
+- Database unavailable.
+- Missing integration.
+- API provider unavailable.
+- Export failure.
+
+Provide useful messages rather than raw stack traces.
+
+Never show a successful report when the scan failed.
+
+# 30. GITHUB REQUIREMENTS
+
+The application must be ready for GitHub.
+
+Create:
+- Complete project source.
+- package.json.
+- Lockfile.
+- TypeScript configuration.
+- Next.js configuration.
+- Tailwind configuration.
+- ESLint configuration.
+- .gitignore.
+- .env.example.
+- README.md.
+- Firestore security rules.
+- Firestore index configuration if required.
+- Deployment documentation.
+
+Do not include:
+- node_modules.
+- Local secrets.
+- Firebase service-account JSON.
+- Private API keys.
+- Local machine paths.
+- Temporary development files.
+
+Ensure that the repository can be cloned and installed on another computer.
+
+# 31. VERCEL DEPLOYMENT REQUIREMENTS
+
+The final project will be hosted on Vercel.
+
+Prepare the application specifically for this deployment target.
+
+Requirements:
+
+1. Use a Vercel-compatible framework and deployment configuration.
+2. Use supported Node.js APIs.
+3. Use serverless-compatible API routes.
+4. Do not depend on permanently running local processes.
+5. Do not use local filesystem storage for persistent reports.
+6. Use Firestore for persistent data.
+7. Store production secrets in Vercel Environment Variables.
+8. Use HTTPS in production.
+9. Configure authentication authorized domains.
+10. Handle production URLs correctly.
+11. Do not hardcode localhost in production.
+12. Do not depend on development-only services.
+13. Avoid packages that require unsupported native binaries.
+14. Do not assume that a local browser automation installation will work on Vercel.
+15. Use optional external services for features that require separate workers or scheduled execution.
+
+For long-running audits, use persisted scan jobs and resumable execution.
+
+Do not assume one serverless function can run indefinitely.
+
+Add the appropriate Node.js function duration configuration only when supported by the chosen Vercel plan.
+
+Create graceful handling for missing environment variables.
+
+When required configuration is missing, show a clear setup message rather than crashing.
+
+# 32. ENVIRONMENT VARIABLES
+
+Create a complete .env.example.
+
+Include the necessary variables for the selected architecture, such as:
+
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_FIREBASE_APP_ID=
+
+FIREBASE_PROJECT_ID=
+FIREBASE_CLIENT_EMAIL=
+FIREBASE_PRIVATE_KEY=
+
+GEMINI_API_KEY=
+
+PAGESPEED_API_KEY=
+
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
+
+APP_BASE_URL=
+
+Additional variables may be included when the selected integrations require them.
+
+Never put private server credentials under NEXT_PUBLIC variables.
+
+Never expose these secrets in frontend bundles.
+
+Document exactly where each variable comes from and where it must be configured.
+
+If an optional integration is not configured, the rest of the application must still work.
+
+# 33. README DOCUMENTATION
+
+Write a beginner-friendly README.
+
+It must explain:
+
+1. What OriginSec does.
+2. Technology stack.
+3. Project folder structure.
+4. Installation.
+5. Running locally.
+6. Firebase project creation.
+7. Enabling Google Authentication.
+8. Firestore setup.
+9. Required environment variables.
+10. Gemini setup.
+11. PageSpeed API setup.
+12. GitHub upload.
+13. GitHub repository connection.
+14. Vercel deployment.
+15. Vercel environment variables.
+16. Authentication authorized domains.
+17. Database security configuration.
+18. Troubleshooting.
+19. Production readiness checklist.
+
+Provide clear Windows-friendly commands where possible.
+
+# 34. TESTING AND QUALITY ASSURANCE
+
+Do not consider the application complete just because it compiles.
+
+Test:
+
+Frontend:
+- Homepage.
+- Navigation.
+- Light/Dark Mode.
+- Forms.
+- Responsive layout.
+- Authentication UI.
+- Report UI.
+- Scan history.
+
+Backend:
+- Invalid URL handling.
+- Valid public URL handling.
+- Blocked private destination handling.
+- Redirect handling.
+- Timeout handling.
+- Request limits.
+- Authentication verification.
+- Database access permissions.
+- Scan ownership checks.
+- Error handling.
+
+Report:
+- Real evidence.
+- Accurate timestamps.
+- Correct findings.
+- Correct severity.
+- Missing-data handling.
+- Export functionality.
+
+Security:
+- SSRF prevention.
+- Cross-user data isolation.
+- Secret protection.
+- Input validation.
+- Rate limiting.
+
+Deployment:
+- Production build.
+- TypeScript compilation.
+- Linting.
+- Environment configuration.
+- Production route behaviour.
+
+Create automated tests for critical functionality.
+
+Do not hide failing tests or ignore TypeScript errors.
+
+# 35. REQUIRED PROJECT QUALITY
+
+The application must have:
+
+- Professional code structure.
+- Reusable UI components.
+- Clear naming.
+- Type-safe models.
+- Modular scanner services.
+- Reusable API validation.
+- Centralized error handling.
+- Database access isolation.
+- Documentation.
+- Production build support.
+
+Avoid:
+- One giant component containing the entire application.
+- Repeated UI code.
+- Placeholder buttons.
+- Dead links.
+- Fake APIs.
+- Fake scan reports.
+- Hardcoded scores.
+- Hardcoded user information.
+- Unnecessary animations.
+- Insecure shortcuts.
+
+Every visible interactive control must perform its stated function or be clearly marked as unavailable.
+
+# 36. FINAL ACCEPTANCE CRITERIA
+
+OriginSec will be considered ready only when:
+
+[ ] Landing page follows my uploaded screenshots.
+
+[ ] Dark Mode works.
+
+[ ] Light Mode works.
+
+[ ] URL validation works.
+
+[ ] Authorization confirmation works.
+
+[ ] Actual public website assessment works.
+
+[ ] Security-header analysis works.
+
+[ ] HTTPS/TLS checks work where supported.
+
+[ ] Frontend analysis works.
+
+[ ] Performance measurements are evidence-based.
+
+[ ] Content quality analysis works.
+
+[ ] API audit supports documented endpoints.
+
+[ ] Ownership verification works.
+
+[ ] Google Sign-In works.
+
+[ ] User-specific database access works.
+
+[ ] Scan history works.
+
+[ ] Detailed report works.
+
+[ ] Evidence-backed remediation recommendations work.
+
+[ ] PDF export works.
+
+[ ] CSV export works.
+
+[ ] JSON export works.
+
+[ ] Integration architecture works.
+
+[ ] Backup status does not display fabricated information.
+
+[ ] Monitoring uses actual scheduled checks.
+
+[ ] Responsive layout works.
+
+[ ] Firestore permissions are secure.
+
+[ ] No secrets are exposed in frontend code.
+
+[ ] No private targets can be scanned through SSRF.
+
+[ ] Production build succeeds.
+
+[ ] README is complete.
+
+[ ] GitHub-ready project structure is complete.
+
+[ ] Vercel configuration is ready.
+
+[ ] Missing optional services do not crash the application.
+
+[ ] No fake functionality is presented as completed functionality.
+
+# 37. DEVELOPMENT INSTRUCTIONS
+
+Now begin building OriginSec.
+
+Follow this execution order internally:
+
+PHASE 1:
+Create the project architecture and complete visual design based on the uploaded screenshots.
+
+PHASE 2:
+Create reusable components, responsive layouts, homepage, dashboard, report pages, and theme management.
+
+PHASE 3:
+Implement Firebase authentication and Firestore.
+
+PHASE 4:
+Implement the real, safe public website scanner.
+
+PHASE 5:
+Implement frontend, security, and performance assessment.
+
+PHASE 6:
+Implement API assessment and owner-verification architecture.
+
+PHASE 7:
+Implement database, hosting, backup, and monitoring integration modules.
+
+PHASE 8:
+Implement real reports, scoring, recommendations, history, and exports.
+
+PHASE 9:
+Implement security hardening and automated testing.
+
+PHASE 10:
+Prepare GitHub and Vercel deployment documentation and configuration.
+
+Do not merely explain what should be built.
+
+Actually create the application files and working code.
+
+Do not stop after the homepage.
+
+Do not replace complex features with buttons that do nothing.
+
+Do not claim that integrations work before successful verification.
+
+If an external API key or provider account is required, implement the integration correctly and clearly document the configuration needed.
+
+If a feature depends on an unavailable provider, mark it as requiring configuration and make sure the rest of the application continues working.
+
+After implementation, inspect the project for:
+- Broken imports.
+- Missing files.
+- Missing dependencies.
+- Incorrect routes.
+- TypeScript errors.
+- Build errors.
+- Authentication errors.
+- Environment-variable mistakes.
+- Vercel incompatibilities.
+- Security issues.
+
+Fix all issues that can be fixed within the project.
+
+Run the production build and relevant tests.
+
+Do not claim a successful deployment until an actual deployment has been verified.
+
+**FINAL PRODUCT VISION:**
+
+OriginSec should feel like a premium professional website security and quality intelligence platform — not a simple URL checker.
+
+The design must remain faithful to my screenshots, while the functionality must be based on real measurements, secure architecture, transparent limitations, and practical recommendations.
+
+**Founder: Aditya Choudhary.**
+
+**Parent Company: DopTails.**
+
+**Product: OriginSec.**
+
+Build the complete application with production readiness as the goal.

@@ -1,0 +1,303 @@
+import React, { useMemo, useState } from 'react';
+import { ArrowLeftRight, RefreshCw, Search, Trash2, ExternalLink } from 'lucide-react';
+import type { WebsiteScan } from '../types/audit';
+import { EmptyWorkspaceState } from './DashboardShell';
+
+interface ScanHistoryViewProps {
+  scans: WebsiteScan[];
+  isAuthenticated: boolean;
+  onSignIn: () => void;
+  onOpenReport: (scan: WebsiteScan) => void;
+  onRescan: (url: string) => void;
+  onDeleteScan: (scanId: string) => void;
+  onStartNewScan: () => void;
+}
+
+const PAGE_SIZE = 8;
+
+export const ScanHistoryView: React.FC<ScanHistoryViewProps> = ({
+  scans,
+  isAuthenticated,
+  onSignIn,
+  onOpenReport,
+  onRescan,
+  onDeleteScan,
+  onStartNewScan,
+}) => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'score_desc'>('newest');
+  const [page, setPage] = useState(1);
+  const [compareIds, setCompareIds] = useState<string[]>([]);
+
+  const filtered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const list = scans.filter((s) => {
+      if (statusFilter !== 'all' && s.status !== statusFilter) return false;
+      if (q && !s.normalizedDomain.toLowerCase().includes(q) && !s.targetUrl.toLowerCase().includes(q)) return false;
+      return true;
+    });
+
+    list.sort((a, b) => {
+      if (sortBy === 'oldest') return new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime();
+      if (sortBy === 'score_desc') return (b.scores?.overall ?? -1) - (a.scores?.overall ?? -1);
+      return new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime();
+    });
+    return list;
+  }, [scans, searchQuery, statusFilter, sortBy]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const toggleCompare = (scanId: string) => {
+    setCompareIds((prev) => {
+      if (prev.includes(scanId)) return prev.filter((id) => id !== scanId);
+      if (prev.length >= 2) return [prev[1], scanId];
+      return [...prev, scanId];
+    });
+  };
+
+  const comparePair = useMemo(() => {
+    if (compareIds.length !== 2) return null;
+    const a = scans.find((s) => s.scanId === compareIds[0]);
+    const b = scans.find((s) => s.scanId === compareIds[1]);
+    return a && b ? [a, b] : null;
+  }, [compareIds, scans]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#151515] dark:text-white">Scan History</h1>
+          <p className="text-[15px] text-[#777267] dark:text-[#929292] mt-1">
+            {isAuthenticated
+              ? 'Your persisted website audits, scores, and side-by-side comparison.'
+              : 'Showing session scans. Sign in with Google from the top bar to persist scan history across sessions.'}
+          </p>
+        </div>
+      </div>
+
+      {/* Search, Filter & Sort Controls */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 text-[#777267] dark:text-[#929292] absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <label htmlFor="history-search" className="sr-only">
+            Search domains
+          </label>
+          <input
+            id="history-search"
+            type="text"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Filter by domain or URL..."
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl text-xs sm:text-sm border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] text-[#151515] dark:text-white focus:outline-none focus:border-[#008C55] dark:focus:border-[#00E69A]"
+          />
+        </div>
+
+        <select
+          value={statusFilter}
+          onChange={(e) => {
+            setStatusFilter(e.target.value);
+            setPage(1);
+          }}
+          aria-label="Filter by status"
+          className="px-3.5 py-2.5 rounded-xl text-xs border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] text-[#151515] dark:text-white cursor-pointer"
+        >
+          <option value="all">All Statuses</option>
+          <option value="completed">Completed</option>
+          <option value="partially_completed">Partially Completed</option>
+          <option value="failed">Failed</option>
+        </select>
+
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as 'newest' | 'oldest' | 'score_desc')}
+          aria-label="Sort scans"
+          className="px-3.5 py-2.5 rounded-xl text-xs border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] text-[#151515] dark:text-white cursor-pointer"
+        >
+          <option value="newest">Newest First</option>
+          <option value="oldest">Oldest First</option>
+          <option value="score_desc">Highest Overall Score</option>
+        </select>
+      </div>
+
+      {/* Side-by-Side Comparison Panel */}
+      {comparePair && (
+        <section className="rounded-2xl border border-[#008C55]/40 dark:border-[#00E69A]/40 bg-white dark:bg-[#0B0B0B] p-6 space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <ArrowLeftRight className="w-4 h-4 text-[#008C55] dark:text-[#00E69A]" />
+              <h2 className="text-sm font-bold text-[#151515] dark:text-white">
+                Report Comparison: {comparePair[0].normalizedDomain} vs {comparePair[1].normalizedDomain}
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCompareIds([])}
+              className="text-xs text-[#777267] dark:text-[#929292] hover:text-[#151515] dark:hover:text-white cursor-pointer"
+            >
+              Clear comparison
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+            {(['security', 'frontend', 'backend', 'engagement'] as const).map((cat) => {
+              const s1 = comparePair[0].scores?.[cat] ?? null;
+              const s2 = comparePair[1].scores?.[cat] ?? null;
+              const diff = s1 !== null && s2 !== null ? s2 - s1 : null;
+              return (
+                <div key={cat} className="rounded-xl border border-[#E7E0D3] dark:border-[#222] bg-[#FAF9F5] dark:bg-[#101010] p-4 space-y-1">
+                  <p className="uppercase tracking-wider text-[10px] font-semibold text-[#777267] dark:text-[#929292]">
+                    {cat}
+                  </p>
+                  <p className="font-mono text-sm font-bold tabular-nums text-[#151515] dark:text-white">
+                    {s1 ?? 'N/A'} → {s2 ?? 'N/A'}
+                  </p>
+                  {diff !== null && (
+                    <p className={`font-mono text-[11px] ${diff >= 0 ? 'text-[#008C55] dark:text-[#00E69A]' : 'text-red-500'}`}>
+                      {diff >= 0 ? `+${diff}` : diff} pts
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Table or Empty State */}
+      {filtered.length === 0 ? (
+        <EmptyWorkspaceState
+          title={scans.length === 0 ? 'No saved scans yet' : 'No matching scans'}
+          description={
+            scans.length === 0
+              ? 'Run a live website audit to generate your first security, frontend, backend, and engagement report.'
+              : 'Try adjusting your domain search query or status filter.'
+          }
+          actionLabel={scans.length === 0 ? 'Analyze a Website' : undefined}
+          onAction={scans.length === 0 ? onStartNewScan : undefined}
+        />
+      ) : (
+        <section className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-[#E7E0D3] dark:border-[#1E1E1E] text-xs text-[#777267] dark:text-[#929292]">
+                  <th className="py-3 px-4 font-medium">Compare</th>
+                  <th className="py-3 px-4 font-medium">Website</th>
+                  <th className="py-3 px-4 font-medium">Scan Date</th>
+                  <th className="py-3 px-4 font-medium">Status</th>
+                  <th className="py-3 px-3 font-medium text-right">Sec</th>
+                  <th className="py-3 px-3 font-medium text-right">FE</th>
+                  <th className="py-3 px-3 font-medium text-right">BE</th>
+                  <th className="py-3 px-3 font-medium text-right">Eng</th>
+                  <th className="py-3 px-3 font-medium text-right">Issues</th>
+                  <th className="py-3 px-4 font-medium text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginated.map((s) => {
+                  const totalFindings = s.findingsCount
+                    ? s.findingsCount.critical + s.findingsCount.high + s.findingsCount.medium + s.findingsCount.low
+                    : s.findings?.length ?? 0;
+                  const checked = compareIds.includes(s.scanId);
+                  return (
+                    <tr
+                      key={s.scanId}
+                      className="border-b border-[#EFECE4] dark:border-[#161616] last:border-b-0 hover:bg-[#FAF9F5] dark:hover:bg-[#101010]"
+                    >
+                      <td className="py-3 px-4">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleCompare(s.scanId)}
+                          aria-label={`Select ${s.normalizedDomain} for comparison`}
+                          className="w-4 h-4 accent-[#008C55] dark:accent-[#00E69A] cursor-pointer"
+                        />
+                      </td>
+                      <td className="py-3 px-4 font-medium text-[#151515] dark:text-white">
+                        <div>{s.normalizedDomain}</div>
+                        <div className="text-[11px] font-mono text-[#777267] dark:text-[#929292] truncate max-w-[200px]">
+                          {s.targetUrl}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-[#777267] dark:text-[#929292] font-mono tabular-nums whitespace-nowrap">
+                        {new Date(s.startedAt).toLocaleDateString()}
+                      </td>
+                      <td className="py-3 px-4 capitalize text-[#777267] dark:text-[#929292] whitespace-nowrap">
+                        {s.status.replace('_', ' ')}
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono tabular-nums">{s.scores?.security ?? '—'}</td>
+                      <td className="py-3 px-3 text-right font-mono tabular-nums">{s.scores?.frontend ?? '—'}</td>
+                      <td className="py-3 px-3 text-right font-mono tabular-nums">{s.scores?.backend ?? '—'}</td>
+                      <td className="py-3 px-3 text-right font-mono tabular-nums">{s.scores?.engagement ?? '—'}</td>
+                      <td className="py-3 px-3 text-right font-mono tabular-nums">{totalFindings}</td>
+                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => onOpenReport(s)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-[#151515] text-white dark:bg-white dark:text-[#050505] cursor-pointer"
+                          >
+                            Open
+                            <ExternalLink className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onRescan(s.targetUrl)}
+                            aria-label={`Rescan ${s.normalizedDomain}`}
+                            title="Rescan target"
+                            className="p-1.5 rounded-lg border border-[#E7E0D3] dark:border-[#252525] text-[#777267] dark:text-[#929292] hover:text-[#151515] dark:hover:text-white cursor-pointer"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onDeleteScan(s.scanId)}
+                            aria-label={`Delete scan ${s.normalizedDomain}`}
+                            title="Delete scan"
+                            className="p-1.5 rounded-lg border border-[#E7E0D3] dark:border-[#252525] text-[#777267] dark:text-[#929292] hover:text-red-600 dark:hover:text-red-400 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="px-6 py-3 border-t border-[#E7E0D3] dark:border-[#1E1E1E] flex items-center justify-between text-xs">
+              <span className="text-[#777267] dark:text-[#929292] font-mono tabular-nums">
+                Page {page} of {totalPages}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                  className="px-3 py-1 rounded-lg border border-[#E7E0D3] dark:border-[#252525] disabled:opacity-40 cursor-pointer"
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="px-3 py-1 rounded-lg border border-[#E7E0D3] dark:border-[#252525] disabled:opacity-40 cursor-pointer"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+    </div>
+  );
+};

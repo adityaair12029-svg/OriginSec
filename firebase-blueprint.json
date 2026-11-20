@@ -1,0 +1,187 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated OriginSec user profile and preferences.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "maxLength": 120 },
+        "email": { "type": "string", "format": "email", "maxLength": 254 },
+        "photoURL": { "type": "string", "maxLength": 1000 },
+        "role": { "type": "string", "enum": ["user", "owner"] },
+        "theme": { "type": "string", "enum": ["dark", "light"] },
+        "defaultCrawlLimit": { "type": "integer" },
+        "defaultCrawlDepth": { "type": "integer" },
+        "emailAlerts": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role", "theme", "createdAt", "updatedAt"]
+    },
+    "WebsiteScan": {
+      "title": "WebsiteScan",
+      "description": "Persistent audit scan record owned by a single user.",
+      "type": "object",
+      "properties": {
+        "scanId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "targetUrl": { "type": "string", "minLength": 8, "maxLength": 2048 },
+        "normalizedDomain": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "status": { "type": "string", "enum": ["pending", "queued", "running", "partially_completed", "completed", "failed", "cancelled"] },
+        "currentStage": { "type": "string", "maxLength": 120 },
+        "progressPercent": { "type": "integer" },
+        "authorizedConfirmed": { "type": "boolean" },
+        "summary": { "type": "string", "maxLength": 4000 },
+        "aiExplanation": { "type": "string", "maxLength": 8000 },
+        "scannerVersion": { "type": "string", "maxLength": 40 },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["scanId", "ownerUid", "targetUrl", "normalizedDomain", "status", "authorizedConfirmed", "scannerVersion", "startedAt", "updatedAt"]
+    },
+    "ScanFinding": {
+      "title": "ScanFinding",
+      "description": "Individual evidence-backed finding linked to a WebsiteScan.",
+      "type": "object",
+      "properties": {
+        "findingId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "scanId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "category": { "type": "string", "enum": ["security", "frontend", "backend", "engagement", "api", "database", "hosting", "backup", "monitoring"] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "severity": { "type": "string", "enum": ["critical", "high", "medium", "low", "informational", "passed"] },
+        "priorityGroup": { "type": "string", "enum": ["fix_immediately", "fix_soon", "optimization", "best_practice", "long_term"] },
+        "description": { "type": "string", "maxLength": 2000 },
+        "evidence": { "type": "string", "maxLength": 2000 },
+        "affectedUrl": { "type": "string", "maxLength": 2048 },
+        "observedValue": { "type": "string", "maxLength": 1000 },
+        "impact": { "type": "string", "maxLength": 1500 },
+        "recommendation": { "type": "string", "maxLength": 2000 },
+        "remediation": { "type": "string", "maxLength": 2500 },
+        "verification": { "type": "string", "maxLength": 1500 },
+        "status": { "type": "string", "enum": ["open", "acknowledged", "resolved", "passed", "not_assessed"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["findingId", "scanId", "ownerUid", "category", "title", "severity", "description", "evidence", "impact", "recommendation", "verification", "status", "createdAt"]
+    },
+    "IntegrationRecord": {
+      "title": "IntegrationRecord",
+      "description": "Authorized third-party or infrastructure integration metadata (no raw secrets).",
+      "type": "object",
+      "properties": {
+        "integrationId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "provider": { "type": "string", "maxLength": 64 },
+        "category": { "type": "string", "maxLength": 64 },
+        "connectionStatus": { "type": "string", "enum": ["connected", "not_configured", "requires_auth", "error"] },
+        "permissions": { "type": "string", "maxLength": 500 },
+        "accountLabel": { "type": "string", "maxLength": 150 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["integrationId", "ownerUid", "provider", "connectionStatus", "permissions", "createdAt", "updatedAt"]
+    },
+    "VerifiedDomain": {
+      "title": "VerifiedDomain",
+      "description": "Domain ownership verification challenge and verified status.",
+      "type": "object",
+      "properties": {
+        "domainId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "domain": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "method": { "type": "string", "enum": ["dns_txt", "html_meta", "well_known"] },
+        "challengeToken": { "type": "string", "minLength": 8, "maxLength": 128 },
+        "verified": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["domainId", "ownerUid", "domain", "method", "challengeToken", "verified", "createdAt", "updatedAt"]
+    },
+    "MonitoringTarget": {
+      "title": "MonitoringTarget",
+      "description": "Continuous uptime, TLS expiry, and header drift monitoring target.",
+      "type": "object",
+      "properties": {
+        "targetId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "domain": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "targetUrl": { "type": "string", "minLength": 8, "maxLength": 2048 },
+        "frequencyMinutes": { "type": "integer" },
+        "enabled": { "type": "boolean" },
+        "lastStatus": { "type": "string", "enum": ["up", "degraded", "down", "pending"] },
+        "lastHttpStatus": { "type": "integer" },
+        "lastResponseTimeMs": { "type": "integer" },
+        "alertEmailEnabled": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["targetId", "ownerUid", "domain", "targetUrl", "frequencyMinutes", "enabled", "lastStatus", "createdAt", "updatedAt"]
+    },
+    "MonitoringEvent": {
+      "title": "MonitoringEvent",
+      "description": "Recorded monitoring check result.",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "targetId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "status": { "type": "string", "enum": ["up", "degraded", "down"] },
+        "httpStatus": { "type": "integer" },
+        "responseTimeMs": { "type": "integer" },
+        "details": { "type": "string", "maxLength": 1000 },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["eventId", "ownerUid", "targetId", "status", "responseTimeMs", "details", "timestamp"]
+    },
+    "BackupStatusRecord": {
+      "title": "BackupStatusRecord",
+      "description": "Verified backup provider status metadata (never fabricated).",
+      "type": "object",
+      "properties": {
+        "recordId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "provider": { "type": "string", "maxLength": 64 },
+        "verifiedStatus": { "type": "string", "enum": ["unavailable", "verified", "warning"] },
+        "evidence": { "type": "string", "maxLength": 1000 },
+        "lastCheckedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["recordId", "ownerUid", "provider", "verifiedStatus", "evidence", "lastCheckedAt", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user profile and scan/theme preferences."
+    },
+    "/scans/{scanId}": {
+      "schema": { "$ref": "#/entities/WebsiteScan" },
+      "description": "Audit scan metadata, coverage, and category scores."
+    },
+    "/scanFindings/{findingId}": {
+      "schema": { "$ref": "#/entities/ScanFinding" },
+      "description": "Individual findings belonging to a specific WebsiteScan."
+    },
+    "/integrations/{integrationId}": {
+      "schema": { "$ref": "#/entities/IntegrationRecord" },
+      "description": "User-connected integration metadata."
+    },
+    "/verifiedDomains/{domainId}": {
+      "schema": { "$ref": "#/entities/VerifiedDomain" },
+      "description": "User domain ownership verification records."
+    },
+    "/monitoringTargets/{targetId}": {
+      "schema": { "$ref": "#/entities/MonitoringTarget" },
+      "description": "Continuous monitoring targets."
+    },
+    "/monitoringEvents/{eventId}": {
+      "schema": { "$ref": "#/entities/MonitoringEvent" },
+      "description": "Monitoring execution events."
+    },
+    "/backupStatus/{recordId}": {
+      "schema": { "$ref": "#/entities/BackupStatusRecord" },
+      "description": "Authorized backup status evidence."
+    }
+  }
+}
