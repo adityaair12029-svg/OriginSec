@@ -1,26 +1,40 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
+import { Search, X } from 'lucide-react';
 import {
   attachAiExplanationToScan,
   createMonitoringTarget,
+  createNotificationItem,
+  createRemediationTask,
+  createWebsiteRecord,
   deleteAllUserScanHistory,
   deleteIntegrationRecord,
   deleteMonitoringTarget,
+  deleteNotificationItem,
+  deleteRemediationTask,
   deleteScanAndFindings,
+  deleteWebsiteRecord,
   ensureUserProfile,
   getScanFindings,
+  markAllNotificationsRead,
+  markNotificationRead,
   recordMonitoringCheckResult,
-  saveIntegrationRecord,
   saveScanToFirestore,
   saveVerifiedDomain,
   subscribeBackupStatus,
   subscribeIntegrations,
   subscribeMonitoringEvents,
   subscribeMonitoringTargets,
+  subscribeNotifications,
+  subscribeRemediationTasks,
   subscribeUserScans,
   subscribeVerifiedDomains,
+  subscribeWebsites,
   toggleMonitoringTarget,
+  updateFindingStatusInFirestore,
+  updateRemediationTask,
   updateUserPreferences,
+  updateWebsiteRecord,
 } from './lib/firebase/firestoreService';
 import {
   auth,
@@ -29,14 +43,20 @@ import {
   signInWithGoogle,
   signOutUser,
 } from './lib/firebase/client';
+import { ORDERED_PROGRESS_STAGES, SCAN_PROFILES } from './lib/scanner/profiles';
 import type {
   BackupStatusRecord,
   IntegrationRecord,
   MonitoringEvent,
   MonitoringTarget,
+  NotificationItem,
+  RemediationTask,
+  ScanFinding,
+  ScanProfileId,
   ThemeMode,
   UserProfile,
   VerifiedDomain,
+  WebsiteRecord,
   WebsiteScan,
 } from './types/audit';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -58,8 +78,19 @@ import {
 import { MonitoringView } from './components/MonitoringView';
 import { IntegrationsView } from './components/IntegrationsView';
 import { AboutView, SettingsView } from './components/SettingsAndAboutView';
+import { MyWebsitesView } from './components/MyWebsitesView';
+import {
+  AccessibilityView,
+  BackendAssessmentView,
+  FrontendIntelligenceView,
+  PerformanceLabView,
+  SeoContentView,
+} from './components/IntelligenceViews';
+import { RemediationWorkspaceView } from './components/RemediationWorkspaceView';
+import { AdminOverviewView, NotificationsView } from './components/NotificationsAndAdminView';
 
 const THEME_STORAGE_KEY = 'originsec-theme';
+const ADMIN_EMAIL = 'adityaair1.2029@gmail.com';
 
 function getInitialTheme(): ThemeMode {
   try {
@@ -91,6 +122,9 @@ export default function App() {
 
   const [firestoreScans, setFirestoreScans] = useState<WebsiteScan[]>([]);
   const [sessionScans, setSessionScans] = useState<WebsiteScan[]>([]);
+  const [websites, setWebsites] = useState<WebsiteRecord[]>([]);
+  const [remediationTasks, setRemediationTasks] = useState<RemediationTask[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [verifiedDomains, setVerifiedDomains] = useState<VerifiedDomain[]>([]);
   const [monitoringTargets, setMonitoringTargets] = useState<MonitoringTarget[]>([]);
   const [monitoringEvents, setMonitoringEvents] = useState<MonitoringEvent[]>([]);
@@ -104,6 +138,9 @@ export default function App() {
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
+
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [universalQuery, setUniversalQuery] = useState('');
 
   const pollTimerRef = useRef<number | null>(null);
 
@@ -121,6 +158,20 @@ export default function App() {
       // Ignore
     }
   }, [theme]);
+
+  // Global keyboard shortcut Cmd/Ctrl + K for Universal Search
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen((v) => !v);
+      } else if (e.key === 'Escape') {
+        setSearchOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   const handleToggleTheme = useCallback(() => {
     setTheme((prev) => {
@@ -156,6 +207,9 @@ export default function App() {
       } else {
         setProfile(null);
         setFirestoreScans([]);
+        setWebsites([]);
+        setRemediationTasks([]);
+        setNotifications([]);
         setVerifiedDomains([]);
         setMonitoringTargets([]);
         setMonitoringEvents([]);
@@ -173,6 +227,9 @@ export default function App() {
 
     const unsubs = [
       subscribeUserScans(user.uid, setFirestoreScans),
+      subscribeWebsites(user.uid, setWebsites),
+      subscribeRemediationTasks(user.uid, setRemediationTasks),
+      subscribeNotifications(user.uid, setNotifications),
       subscribeVerifiedDomains(user.uid, setVerifiedDomains),
       subscribeMonitoringTargets(user.uid, setMonitoringTargets),
       subscribeMonitoringEvents(user.uid, setMonitoringEvents),
@@ -220,12 +277,15 @@ export default function App() {
 
   const handleSignOut = async () => {
     await signOutUser();
-    if (route === 'dashboard' || route === 'settings') {
+    if (route === 'dashboard' || route === 'settings' || route === 'admin' || route === 'websites' || route === 'remediation' || route === 'notifications') {
       setRoute('home');
     }
   };
 
   const allScans = user ? firestoreScans : sessionScans;
+  const isAdmin = Boolean(user?.email && user.email.toLowerCase() === ADMIN_EMAIL);
+  const unreadNotificationsCount = notifications.filter((n) => !n.read).length;
+  const openRemediationCount = remediationTasks.filter((t) => t.status !== 'resolved' && t.status !== 'accepted_risk').length;
 
   const stopPolling = () => {
     if (pollTimerRef.current) {
@@ -234,16 +294,86 @@ export default function App() {
     }
   };
 
+  const handlePostScanPersistence = useCallback(
+    async (finalReport: WebsiteScan, currentUser: User | null) => {
+      if (!currentUser) {
+        setSessionScans((prev) => [finalReport, ...prev]);
+        return;
+      }
+
+      try {
+        await saveScanToFirestore(finalReport, currentUser.uid);
+
+        // Update matching registered website with latest score
+        const matchingSite = websites.find((w) => w.normalizedDomain === finalReport.normalizedDomain);
+        if (matchingSite) {
+          await updateWebsiteRecord(matchingSite.websiteId, {
+            latestScanId: finalReport.scanId,
+            latestOverallScore: finalReport.scores?.overall ?? null,
+            lastScannedAt: finalReport.completedAt || finalReport.startedAt,
+          }).catch(() => {});
+        }
+
+        // Create concise notifications (scan completed + critical finding or TLS expiry if triggered)
+        await createNotificationItem({
+          notificationId: `notif_${finalReport.scanId}_done`,
+          ownerUid: currentUser.uid,
+          type: 'scan_completed',
+          title: `Audit completed: ${finalReport.normalizedDomain}`,
+          message: `Score ${finalReport.scores?.overall ?? 'N/A'}/100 · ${finalReport.findingsCount?.critical ?? 0} critical, ${finalReport.findingsCount?.high ?? 0} high issue(s).`,
+          domain: finalReport.normalizedDomain,
+          relatedId: finalReport.scanId,
+        });
+
+        const critCount = (finalReport.findingsCount?.critical ?? 0) + (finalReport.findingsCount?.high ?? 0);
+        if (critCount > 0) {
+          await createNotificationItem({
+            notificationId: `notif_${finalReport.scanId}_crit`,
+            ownerUid: currentUser.uid,
+            type: 'critical_finding',
+            title: `${critCount} High/Critical issue(s) on ${finalReport.normalizedDomain}`,
+            message: `Inspect Security & Architecture findings and track fixes inside Remediation Workspace.`,
+            domain: finalReport.normalizedDomain,
+            relatedId: finalReport.scanId,
+          });
+        }
+
+        const tlsDays = finalReport.metrics?.tls?.daysRemaining;
+        if (tlsDays !== null && tlsDays !== undefined && tlsDays <= 30) {
+          await createNotificationItem({
+            notificationId: `notif_${finalReport.scanId}_tls`,
+            ownerUid: currentUser.uid,
+            type: 'tls_expiry',
+            title: `TLS certificate expiring soon (${tlsDays}d)`,
+            message: `${finalReport.normalizedDomain} SSL/TLS certificate has ${tlsDays} day(s) remaining.`,
+            domain: finalReport.normalizedDomain,
+            relatedId: finalReport.scanId,
+          });
+        }
+      } catch (saveErr) {
+        console.error('Could not persist scan to Firestore:', saveErr);
+        setSessionScans((prev) => [finalReport, ...prev]);
+      }
+    },
+    [websites]
+  );
+
   const handleStartScan = async (params: {
     targetUrl: string;
     authorizedConfirmed: boolean;
-    maxPages: number;
-    crawlDepth: number;
+    scanProfile?: ScanProfileId;
+    maxPages?: number;
+    crawlDepth?: number;
   }) => {
     stopPolling();
     setScanSubmitError(null);
     setAiError(null);
     setIsSubmittingScan(true);
+
+    const chosenProfile: ScanProfileId = params.scanProfile || 'standard';
+    const profileDef = SCAN_PROFILES[chosenProfile] || SCAN_PROFILES.standard;
+    const maxPages = params.maxPages ?? profileDef.maxPages;
+    const crawlDepth = params.crawlDepth ?? profileDef.crawlDepth;
 
     let targetHostname = '';
     try {
@@ -267,37 +397,29 @@ export default function App() {
     };
 
     if (isVercelClient) {
-      const stages = [
-        { stage: 'Validating target', progress: 12 },
-        { stage: 'Checking DNS', progress: 26 },
-        { stage: 'Checking HTTPS/TLS', progress: 44 },
-        { stage: 'Inspecting response headers', progress: 62 },
-        { stage: 'Analysing homepage', progress: 78 },
-        { stage: 'Generating report', progress: 90 },
-      ];
       let idx = 0;
       setActiveProgress({
         scanId: 'pending',
         targetUrl: params.targetUrl,
         normalizedDomain: targetHostname || params.targetUrl,
         status: 'running',
-        currentStage: stages[0].stage,
-        progressPercent: stages[0].progress,
+        currentStage: ORDERED_PROGRESS_STAGES[0],
+        progressPercent: 10,
         stagesLog: [],
       });
       setRoute('scan');
       syncTicker = window.setInterval(() => {
-        idx = Math.min(stages.length - 1, idx + 1);
+        idx = Math.min(ORDERED_PROGRESS_STAGES.length - 2, idx + 1);
         setActiveProgress((prev) =>
           prev
             ? {
                 ...prev,
-                currentStage: stages[idx].stage,
-                progressPercent: stages[idx].progress,
+                currentStage: ORDERED_PROGRESS_STAGES[idx],
+                progressPercent: Math.min(92, Math.round(((idx + 1) / ORDERED_PROGRESS_STAGES.length) * 95)),
               }
             : prev
         );
-      }, 1100);
+      }, 950);
     }
 
     try {
@@ -313,8 +435,9 @@ export default function App() {
         body: JSON.stringify({
           targetUrl: params.targetUrl,
           authorizedConfirmed: params.authorizedConfirmed,
-          maxPages: params.maxPages || profile?.defaultCrawlLimit || 8,
-          crawlDepth: params.crawlDepth ?? profile?.defaultCrawlDepth ?? 1,
+          scanProfile: chosenProfile,
+          maxPages,
+          crawlDepth,
           isDomainVerified,
           ...(isVercelClient ? { sync: true } : {}),
         }),
@@ -326,7 +449,7 @@ export default function App() {
         const errMsg =
           data?.error ||
           (res.status === 504
-            ? 'The target website took too long to respond on serverless timeout. Try scanning again.'
+            ? 'The target website took too long to respond on serverless timeout. Try Quick Audit profile.'
             : rawText && !rawText.trim().startsWith('<')
               ? rawText.slice(0, 200)
               : `Could not complete website scan (HTTP ${res.status}).`);
@@ -345,21 +468,12 @@ export default function App() {
         return;
       }
 
-      const activeUser = user || auth?.currentUser;
+      const activeUser = user || auth?.currentUser || null;
 
       // Synchronous completion path (Vercel Serverless or ?sync=true)
       if ((data.status === 'completed' || data.status === 'partially_completed') && data.result) {
         const finalReport: WebsiteScan = data.result;
-        if (activeUser) {
-          try {
-            await saveScanToFirestore(finalReport, activeUser.uid);
-          } catch (saveErr) {
-            console.error('Could not persist scan to Firestore:', saveErr);
-            setSessionScans((prev) => [finalReport, ...prev]);
-          }
-        } else {
-          setSessionScans((prev) => [finalReport, ...prev]);
-        }
+        await handlePostScanPersistence(finalReport, activeUser);
         setSelectedReport(finalReport);
         setActiveProgress(null);
         setRoute('report');
@@ -426,17 +540,8 @@ export default function App() {
 
           if (pData.status === 'completed' || pData.status === 'partially_completed') {
             const finalReport: WebsiteScan = pData.result;
-            const currentUser = user || auth?.currentUser;
-            if (currentUser) {
-              try {
-                await saveScanToFirestore(finalReport, currentUser.uid);
-              } catch (saveErr) {
-                console.error('Could not persist scan to Firestore:', saveErr);
-                setSessionScans((prev) => [finalReport, ...prev]);
-              }
-            } else {
-              setSessionScans((prev) => [finalReport, ...prev]);
-            }
+            const currentUser = user || auth?.currentUser || null;
+            await handlePostScanPersistence(finalReport, currentUser);
             setSelectedReport(finalReport);
             setActiveProgress(null);
             setRoute('report');
@@ -485,12 +590,11 @@ export default function App() {
     setRoute('report');
   };
 
-  const handleRescan = (url: string) => {
+  const handleRescan = (url: string, scanProfile: ScanProfileId = 'standard') => {
     void handleStartScan({
       targetUrl: url,
       authorizedConfirmed: true,
-      maxPages: profile?.defaultCrawlLimit ?? 8,
-      crawlDepth: profile?.defaultCrawlDepth ?? 1,
+      scanProfile,
     });
   };
 
@@ -521,6 +625,35 @@ export default function App() {
       alertEmailEnabled: true,
     });
     setRoute('monitoring');
+  };
+
+  const handleTrackFindingInRemediation = async (finding: ScanFinding, scan: WebsiteScan) => {
+    if (!user) {
+      await handleSignIn();
+      return;
+    }
+    const taskId = `rem_${finding.findingId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 90)}`;
+    const priorityMap: Record<string, RemediationTask['priority']> = {
+      critical: 'p1_critical',
+      high: 'p2_high',
+      medium: 'p3_medium',
+      low: 'p4_low',
+    };
+    await createRemediationTask({
+      taskId,
+      ownerUid: user.uid,
+      scanId: scan.scanId,
+      findingId: finding.findingId,
+      ruleId: finding.ruleId,
+      domain: scan.normalizedDomain,
+      targetUrl: scan.targetUrl,
+      title: finding.title,
+      category: finding.category,
+      severity: finding.severity,
+      priority: priorityMap[finding.severity] || 'p3_medium',
+      notes: '',
+      dueDate: null,
+    });
   };
 
   const handleGenerateAiBrief = async (scan: WebsiteScan, audience: 'owner' | 'developer') => {
@@ -554,6 +687,30 @@ export default function App() {
     }
   };
 
+  const handleAskAiQuestion = async (scan: WebsiteScan, question: string) => {
+    setAiError(null);
+    try {
+      const token = await getAuthToken();
+      const res = await fetch('/api/ai/ask', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ scan, question }),
+      });
+      const { data } = await parseJsonSafe<any>(res);
+      if (!res.ok || !data) {
+        setAiError(data?.error || `AI Q&A unavailable (HTTP ${res.status}).`);
+        return null;
+      }
+      return data.answer as string;
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Network error calling AI Q&A.');
+      return null;
+    }
+  };
+
   const handleRunMonitoringCheck = async (target: MonitoringTarget) => {
     if (!user) return;
     const token = await getAuthToken();
@@ -576,11 +733,39 @@ export default function App() {
         sslExpiryDays: data.sslExpiryDays,
         details: data.details,
       });
+
+      if (data.status === 'down' || data.status === 'degraded') {
+        await createNotificationItem({
+          notificationId: `notif_mon_${Date.now()}`,
+          ownerUid: user.uid,
+          type: 'monitoring_incident',
+          title: `Monitor ${data.status.toUpperCase()}: ${target.domain}`,
+          message: data.details || `HTTP ${data.httpStatus ?? 'N/A'}`,
+          domain: target.domain,
+          relatedId: target.targetId,
+        });
+      }
     }
   };
 
-  const isDashboardWorkspaceRoute =
-    route !== 'home' && route !== 'scan' && route !== 'report';
+  // Universal Search Matches
+  const searchResults = useMemo(() => {
+    const q = universalQuery.trim().toLowerCase();
+    if (!q) {
+      return {
+        scans: allScans.slice(0, 4),
+        websites: websites.slice(0, 3),
+        tasks: remediationTasks.slice(0, 3),
+      };
+    }
+    return {
+      scans: allScans.filter((s) => s.normalizedDomain.toLowerCase().includes(q) || s.targetUrl.toLowerCase().includes(q)).slice(0, 6),
+      websites: websites.filter((w) => w.name.toLowerCase().includes(q) || w.normalizedDomain.toLowerCase().includes(q)).slice(0, 5),
+      tasks: remediationTasks.filter((t) => t.title.toLowerCase().includes(q) || t.domain.toLowerCase().includes(q)).slice(0, 5),
+    };
+  }, [universalQuery, allScans, websites, remediationTasks]);
+
+  const isDashboardWorkspaceRoute = route !== 'home' && route !== 'scan' && route !== 'report';
 
   return (
     <ErrorBoundary>
@@ -598,6 +783,8 @@ export default function App() {
           }}
           authLoading={authLoading}
           authReady={authReady}
+          unreadNotificationsCount={unreadNotificationsCount}
+          onOpenSearch={() => setSearchOpen(true)}
         />
 
         {authNotice && (
@@ -634,23 +821,57 @@ export default function App() {
         {route === 'report' && selectedReport && (
           <AuditReportView
             scan={selectedReport}
-            onRescan={handleRescan}
+            onRescan={(url) => handleRescan(url, selectedReport.scanProfile || 'standard')}
             onAddToMonitoring={handleAddToMonitoring}
+            onTrackFindingInRemediation={handleTrackFindingInRemediation}
             onGenerateAiBrief={handleGenerateAiBrief}
+            onAskAiQuestion={handleAskAiQuestion}
             isGeneratingAi={isGeneratingAi}
             aiError={aiError}
           />
         )}
 
         {isDashboardWorkspaceRoute && (
-          <DashboardShell activeRoute={route} onNavigate={setRoute}>
+          <DashboardShell
+            activeRoute={route}
+            onNavigate={setRoute}
+            isAdmin={isAdmin}
+            unreadNotificationsCount={unreadNotificationsCount}
+            openRemediationCount={openRemediationCount}
+            onOpenSearch={() => setSearchOpen(true)}
+          >
             {route === 'dashboard' && (
               <OverviewView
                 scans={allScans}
+                websites={websites}
                 monitoringTargets={monitoringTargets}
+                remediationTasks={remediationTasks}
                 onOpenReport={handleOpenReport}
                 onNavigate={setRoute}
                 userEmail={user?.email}
+              />
+            )}
+
+            {route === 'websites' && (
+              <MyWebsitesView
+                isAuthenticated={Boolean(user)}
+                onSignIn={handleSignIn}
+                websites={websites}
+                scans={allScans}
+                verifiedDomains={verifiedDomains}
+                getAuthToken={getAuthToken}
+                onCreateWebsite={async (rec) => {
+                  if (!user) return;
+                  await createWebsiteRecord({ ...rec, ownerUid: user.uid });
+                }}
+                onUpdateWebsite={updateWebsiteRecord}
+                onDeleteWebsite={deleteWebsiteRecord}
+                onSaveVerifiedDomain={async (rec) => {
+                  if (!user) return;
+                  await saveVerifiedDomain({ ...rec, ownerUid: user.uid });
+                }}
+                onRunScan={(url, prof) => handleRescan(url, prof)}
+                onOpenReport={handleOpenReport}
               />
             )}
 
@@ -660,7 +881,7 @@ export default function App() {
                 isAuthenticated={Boolean(user)}
                 onSignIn={handleSignIn}
                 onOpenReport={handleOpenReport}
-                onRescan={handleRescan}
+                onRescan={(url) => handleRescan(url)}
                 onDeleteScan={handleDeleteScan}
                 onStartNewScan={() => setRoute('home')}
               />
@@ -671,6 +892,66 @@ export default function App() {
                 scans={allScans}
                 onOpenReport={handleOpenReport}
                 onNavigate={setRoute}
+              />
+            )}
+
+            {route === 'frontend-intel' && (
+              <FrontendIntelligenceView scans={allScans} onNavigate={setRoute} onOpenReport={handleOpenReport} />
+            )}
+
+            {route === 'seo-quality' && (
+              <SeoContentView scans={allScans} onNavigate={setRoute} onOpenReport={handleOpenReport} />
+            )}
+
+            {route === 'performance-lab' && (
+              <PerformanceLabView scans={allScans} onNavigate={setRoute} onOpenReport={handleOpenReport} />
+            )}
+
+            {route === 'accessibility' && (
+              <AccessibilityView scans={allScans} onNavigate={setRoute} onOpenReport={handleOpenReport} />
+            )}
+
+            {route === 'backend-assessment' && (
+              <BackendAssessmentView
+                scans={allScans}
+                integrations={integrations}
+                onNavigate={setRoute}
+                onOpenReport={handleOpenReport}
+              />
+            )}
+
+            {route === 'remediation' && (
+              <RemediationWorkspaceView
+                isAuthenticated={Boolean(user)}
+                onSignIn={handleSignIn}
+                tasks={remediationTasks}
+                getAuthToken={getAuthToken}
+                onUpdateTask={updateRemediationTask}
+                onUpdateFindingStatus={updateFindingStatusInFirestore}
+                onDeleteTask={deleteRemediationTask}
+                onNotificationTrigger={async (msg, domain, taskId) => {
+                  if (!user) return;
+                  await createNotificationItem({
+                    notificationId: `notif_ver_${Date.now()}`,
+                    ownerUid: user.uid,
+                    type: 'verification_success',
+                    title: `Fix verified on ${domain}`,
+                    message: msg,
+                    domain,
+                    relatedId: taskId,
+                  });
+                }}
+              />
+            )}
+
+            {route === 'notifications' && (
+              <NotificationsView
+                isAuthenticated={Boolean(user)}
+                onSignIn={handleSignIn}
+                notifications={notifications}
+                onMarkRead={markNotificationRead}
+                onMarkAllRead={() => markAllNotificationsRead(notifications)}
+                onDelete={deleteNotificationItem}
               />
             )}
 
@@ -752,7 +1033,114 @@ export default function App() {
             )}
 
             {route === 'about' && <AboutView />}
+
+            {route === 'admin' && isAdmin && (
+              <AdminOverviewView user={user} getAuthToken={getAuthToken} />
+            )}
           </DashboardShell>
+        )}
+
+        {/* Universal Search Modal */}
+        {searchOpen && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Universal Search"
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-start justify-center pt-20 px-4"
+            onClick={() => setSearchOpen(false)}
+          >
+            <div
+              className="max-w-xl w-full rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 px-4 py-3.5 border-b border-[#E7E0D3] dark:border-[#1E1E1E]">
+                <Search className="w-4 h-4 text-[#777267]" />
+                <input
+                  type="text"
+                  autoFocus
+                  value={universalQuery}
+                  onChange={(e) => setUniversalQuery(e.target.value)}
+                  placeholder="Search websites, scan domains, or remediation findings..."
+                  className="flex-1 bg-transparent text-sm text-[#151515] dark:text-white focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setSearchOpen(false)}
+                  aria-label="Close search"
+                  className="p-1 text-[#777267] hover:text-[#151515] dark:hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="max-h-80 overflow-y-auto p-3 space-y-4 text-xs">
+                {searchResults.scans.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="px-2 font-semibold uppercase tracking-wider text-[10px] text-[#777267]">Audited Scans</p>
+                    {searchResults.scans.map((s) => (
+                      <button
+                        key={s.scanId}
+                        type="button"
+                        onClick={() => {
+                          setSearchOpen(false);
+                          void handleOpenReport(s);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#FAF9F5] dark:hover:bg-[#141414] flex items-center justify-between cursor-pointer"
+                      >
+                        <span className="font-medium text-[#151515] dark:text-white">{s.normalizedDomain}</span>
+                        <span className="font-mono text-[#777267]">{s.scores?.overall ?? 'N/A'}/100</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {searchResults.websites.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="px-2 font-semibold uppercase tracking-wider text-[10px] text-[#777267]">My Websites</p>
+                    {searchResults.websites.map((w) => (
+                      <button
+                        key={w.websiteId}
+                        type="button"
+                        onClick={() => {
+                          setSearchOpen(false);
+                          setRoute('websites');
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#FAF9F5] dark:hover:bg-[#141414] flex items-center justify-between cursor-pointer"
+                      >
+                        <span className="font-medium text-[#151515] dark:text-white">{w.name}</span>
+                        <span className="font-mono text-[#777267]">{w.normalizedDomain}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {searchResults.tasks.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="px-2 font-semibold uppercase tracking-wider text-[10px] text-[#777267]">Remediation Tasks</p>
+                    {searchResults.tasks.map((t) => (
+                      <button
+                        key={t.taskId}
+                        type="button"
+                        onClick={() => {
+                          setSearchOpen(false);
+                          setRoute('remediation');
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#FAF9F5] dark:hover:bg-[#141414] flex items-center justify-between cursor-pointer"
+                      >
+                        <span className="font-medium text-[#151515] dark:text-white truncate pr-2">{t.title}</span>
+                        <span className="font-mono text-[#777267] uppercase">{t.status}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {searchResults.scans.length === 0 &&
+                  searchResults.websites.length === 0 &&
+                  searchResults.tasks.length === 0 && (
+                    <p className="text-center py-6 text-[#777267]">No matching scans, websites, or findings.</p>
+                  )}
+              </div>
+            </div>
+          </div>
         )}
 
         <Footer onNavigate={setRoute} />

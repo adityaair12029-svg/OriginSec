@@ -1,5 +1,13 @@
 export type ThemeMode = 'dark' | 'light';
 
+export type ScanProfileId =
+  | 'quick'
+  | 'standard'
+  | 'comprehensive'
+  | 'verified_owner'
+  | 'performance'
+  | 'frontend_quality';
+
 export type ScanStatus =
   | 'pending'
   | 'queued'
@@ -38,7 +46,10 @@ export type PriorityGroup =
 export type FindingStatus =
   | 'open'
   | 'acknowledged'
+  | 'in_progress'
+  | 'ready_for_verification'
   | 'resolved'
+  | 'accepted_risk'
   | 'passed'
   | 'not_assessed';
 
@@ -46,6 +57,7 @@ export interface ScanCoverage {
   pagesScanned: number;
   maxPages: number;
   crawlDepth: number;
+  scanProfile?: ScanProfileId;
   httpsVerified: boolean;
   dnsVerified: boolean;
   tlsVerified: boolean;
@@ -62,6 +74,9 @@ export interface CategoryScores {
   backend: number | null;
   engagement: number | null;
   overall: number | null;
+  seo?: number | null;
+  accessibility?: number | null;
+  performance?: number | null;
 }
 
 export interface FindingsCount {
@@ -112,10 +127,41 @@ export interface DnsSignals {
   mxRecords: string[];
   txtRecords: string[];
   caaRecords: string[];
+  cnameRecords?: string[];
   hasSpf: boolean;
   hasDmarc: boolean;
+  hasDnssec?: boolean | null;
   dmarcRecord?: string;
   error?: string;
+}
+
+export interface TimingBreakdownMs {
+  dnsLookupMs: number;
+  tlsHandshakeMs: number;
+  ttfbMs: number;
+  warmTtfbMs: number;
+  contentTransferMs: number;
+  totalResponseTimeMs: number;
+}
+
+export interface ExtendedFrontendMetrics {
+  formCount: number;
+  inputsWithoutLabel: number;
+  buttonsWithoutText: number;
+  emptyLinks: number;
+  imagesWithoutLazyLoading: number;
+  headingOrderIssues: number;
+  hasCanonical: boolean;
+  canonicalUrl: string | null;
+  hasMetaDescription: boolean;
+  metaDescriptionLength: number;
+  hasOpenGraph: boolean;
+  hasTwitterCard: boolean;
+  hasRobotsTxt: boolean;
+  hasSitemapXml: boolean;
+  hasSecurityTxt: boolean;
+  htmlLang: string | null;
+  pageTitle: string | null;
 }
 
 export interface ScanMetrics {
@@ -140,13 +186,19 @@ export interface ScanMetrics {
   tls: TlsCertificateInfo;
   dns: DnsSignals;
   lighthouse: LighthouseMetrics;
+  timingBreakdown?: TimingBreakdownMs;
+  frontendDetails?: ExtendedFrontendMetrics;
+  headersSnapshot?: Record<string, string>;
+  crawledUrls?: string[];
 }
 
 export interface ScanFinding {
   findingId: string;
+  ruleId?: string;
   scanId: string;
   ownerUid: string;
   category: FindingCategory;
+  subCategory?: 'seo' | 'accessibility' | 'performance' | 'headers' | 'tls' | 'dns' | 'api' | 'content' | 'infrastructure';
   title: string;
   severity: SeverityLevel;
   priorityGroup: PriorityGroup;
@@ -159,6 +211,11 @@ export interface ScanFinding {
   remediation: string;
   verification: string;
   status: FindingStatus;
+  confidence?: 'verified_direct' | 'static_html' | 'heuristic' | 'not_assessed';
+  manualReviewRequired?: boolean;
+  remediationNote?: string;
+  dueDate?: string | null;
+  resolvedAt?: string | null;
   createdAt: string;
 }
 
@@ -167,6 +224,8 @@ export interface WebsiteScan {
   ownerUid: string;
   targetUrl: string;
   normalizedDomain: string;
+  scanProfile?: ScanProfileId;
+  postureFingerprint?: string;
   status: ScanStatus;
   currentStage: string;
   progressPercent: number;
@@ -183,6 +242,55 @@ export interface WebsiteScan {
   updatedAt: string;
   findings?: ScanFinding[];
   stagesLog?: Array<{ stage: string; status: 'completed' | 'skipped' | 'failed'; detail: string; timestamp: string }>;
+}
+
+export interface WebsiteRecord {
+  websiteId: string;
+  ownerUid: string;
+  name: string;
+  targetUrl: string;
+  normalizedDomain: string;
+  verificationStatus: 'unverified' | 'pending' | 'verified';
+  defaultProfile: ScanProfileId;
+  monitoringPaused: boolean;
+  latestScanId?: string | null;
+  latestOverallScore?: number | null;
+  lastScannedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RemediationTask {
+  taskId: string;
+  ownerUid: string;
+  scanId: string;
+  findingId: string;
+  ruleId?: string;
+  domain: string;
+  targetUrl: string;
+  title: string;
+  category: FindingCategory;
+  severity: SeverityLevel;
+  status: 'open' | 'acknowledged' | 'in_progress' | 'ready_for_verification' | 'resolved' | 'accepted_risk';
+  priority: 'p1_critical' | 'p2_high' | 'p3_medium' | 'p4_low';
+  notes: string;
+  dueDate: string | null;
+  lastVerifiedAt: string | null;
+  verificationResult?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotificationItem {
+  notificationId: string;
+  ownerUid: string;
+  type: 'scan_completed' | 'critical_finding' | 'tls_expiry' | 'monitoring_incident' | 'verification_success';
+  title: string;
+  message: string;
+  domain?: string;
+  relatedId?: string;
+  read: boolean;
+  createdAt: string;
 }
 
 export interface ApiProbeResult {

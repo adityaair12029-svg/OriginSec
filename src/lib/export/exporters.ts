@@ -14,9 +14,15 @@ function triggerDownload(blob: Blob, filename: string) {
 
 export function exportScanAsJson(scan: WebsiteScan) {
   const payload = {
-    schemaVersion: 'originsec-report-v1',
+    schemaVersion: 'originsec-report-v2',
     exportedAt: new Date().toISOString(),
-    generator: 'OriginSec by DopTails',
+    generator: 'OriginSec 2.0 by DopTails (Founder: Aditya Choudhary)',
+    assessmentScope: {
+      scanProfile: scan.scanProfile || scan.coverage?.scanProfile || 'standard',
+      authorizedConfirmed: scan.authorizedConfirmed,
+      postureFingerprint: scan.postureFingerprint || null,
+      pagesScanned: scan.coverage?.pagesScanned ?? 1,
+    },
     methodology:
       'External passive & safe HTTP/TLS/DNS/HTML inspection. Unconnected infrastructure, database, and backup categories are explicitly marked Not assessed.',
     report: {
@@ -49,11 +55,14 @@ function escapeCsvCell(val: string | number | null | undefined): string {
 export function exportScanAsCsv(scan: WebsiteScan) {
   const headers = [
     'Finding ID',
+    'Rule ID',
     'Category',
+    'SubCategory',
     'Title',
     'Severity',
     'Priority',
     'Status',
+    'Confidence',
     'Affected URL',
     'Observed Value',
     'Description',
@@ -62,16 +71,20 @@ export function exportScanAsCsv(scan: WebsiteScan) {
     'Recommendation',
     'Remediation Example',
     'Verification',
+    'Detected At',
   ];
 
   const rows = (scan.findings || []).map((f) =>
     [
       f.findingId,
+      f.ruleId || '',
       f.category,
+      f.subCategory || '',
       f.title,
       f.severity.toUpperCase(),
       f.priorityGroup,
       f.status,
+      f.confidence || '',
       f.affectedUrl,
       f.observedValue,
       f.description,
@@ -80,6 +93,7 @@ export function exportScanAsCsv(scan: WebsiteScan) {
       f.recommendation,
       f.remediation,
       f.verification,
+      f.createdAt,
     ]
       .map(escapeCsvCell)
       .join(',')
@@ -109,35 +123,45 @@ export function exportScanAsPdf(scan: WebsiteScan) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
   doc.setTextColor(15, 23, 42);
-  doc.text('ORIGINSEC', margin, y);
-  doc.setFontSize(10);
+  doc.text('ORIGINSEC 2.0', margin, y);
+  doc.setFontSize(9.5);
   doc.setTextColor(0, 140, 85);
-  doc.text('REAL-TIME DIAGNOSTICS, NO FLUFF  |  A DOPTAILS COMPANY', margin + 115, y);
+  doc.text('REAL-TIME DIAGNOSTICS, NO FLUFF  |  A DOPTAILS COMPANY', margin + 140, y);
 
   y += 22;
   doc.setDrawColor(220, 220, 220);
   doc.line(margin, y, pageWidth - margin, y);
   y += 24;
 
-  // Report Metadata
+  // Report Metadata & Assessment Scope
   doc.setFontSize(16);
   doc.setTextColor(15, 23, 42);
   doc.text(`Audit Report — ${scan.normalizedDomain}`, margin, y);
   y += 18;
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9.5);
+  doc.setFontSize(9);
   doc.setTextColor(80, 80, 80);
   doc.text(`Target URL: ${scan.targetUrl}`, margin, y);
-  y += 14;
-  doc.text(`Scan ID: ${scan.scanId}   |   Status: ${scan.status.toUpperCase()}   |   Completed: ${scan.completedAt || scan.startedAt}`, margin, y);
-  y += 14;
+  y += 13;
   doc.text(
-    `Coverage: ${scan.coverage?.pagesScanned ?? 1} page(s) crawled · HTTPS: ${scan.coverage?.httpsVerified ? 'Yes' : 'No'} · TLS: ${scan.coverage?.tlsVerified ? 'Verified' : 'Unavailable'} · DNS: ${scan.coverage?.dnsVerified ? 'Verified' : 'Unavailable'}`,
+    `Scan ID: ${scan.scanId}   |   Profile: ${(scan.scanProfile || 'standard').toUpperCase()}   |   Fingerprint: ${scan.postureFingerprint || 'N/A'}`,
     margin,
     y
   );
-  y += 24;
+  y += 13;
+  doc.text(
+    `Status: ${scan.status.toUpperCase()}   |   Authorization: ${scan.authorizedConfirmed ? 'User Confirmed' : 'Unconfirmed'}   |   Completed: ${scan.completedAt || scan.startedAt}`,
+    margin,
+    y
+  );
+  y += 13;
+  doc.text(
+    `Coverage: ${scan.coverage?.pagesScanned ?? 1} page(s) · HTTPS: ${scan.coverage?.httpsVerified ? 'Yes' : 'No'} · TLS: ${scan.coverage?.tlsVerified ? 'Verified' : 'Unavailable'} · DNS: ${scan.coverage?.dnsVerified ? 'Verified' : 'Unavailable'}`,
+    margin,
+    y
+  );
+  y += 22;
 
   // Executive Summary
   doc.setFont('helvetica', 'bold');
@@ -190,7 +214,7 @@ export function exportScanAsPdf(scan: WebsiteScan) {
   y += 18;
 
   for (const f of scan.findings || []) {
-    ensureSpace(110);
+    ensureSpace(115);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(15, 23, 42);
@@ -204,7 +228,7 @@ export function exportScanAsPdf(scan: WebsiteScan) {
     doc.text(descLines, margin, y);
     y += descLines.length * 11 + 3;
 
-    const evLines = doc.splitTextToSize(`Evidence: ${f.evidence}`, maxWidth);
+    const evLines = doc.splitTextToSize(`Evidence: ${f.evidence} | Status: ${f.status}`, maxWidth);
     doc.text(evLines, margin, y);
     y += evLines.length * 11 + 3;
 
@@ -221,7 +245,7 @@ export function exportScanAsPdf(scan: WebsiteScan) {
   }
 
   // Methodology & Disclaimer
-  ensureSpace(90);
+  ensureSpace(95);
   y += 10;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);

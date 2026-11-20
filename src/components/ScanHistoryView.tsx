@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowLeftRight, RefreshCw, Search, Trash2, ExternalLink } from 'lucide-react';
+import { ArrowLeftRight, CheckCircle2, ExternalLink, RefreshCw, Search, Trash2 } from 'lucide-react';
 import type { WebsiteScan } from '../types/audit';
+import { compareTwoScans } from '../lib/scanner/profiles';
 import { EmptyWorkspaceState } from './DashboardShell';
 
 interface ScanHistoryViewProps {
@@ -18,7 +19,6 @@ const PAGE_SIZE = 8;
 export const ScanHistoryView: React.FC<ScanHistoryViewProps> = ({
   scans,
   isAuthenticated,
-  onSignIn,
   onOpenReport,
   onRescan,
   onDeleteScan,
@@ -57,11 +57,14 @@ export const ScanHistoryView: React.FC<ScanHistoryViewProps> = ({
     });
   };
 
-  const comparePair = useMemo(() => {
+  const compareData = useMemo(() => {
     if (compareIds.length !== 2) return null;
     const a = scans.find((s) => s.scanId === compareIds[0]);
     const b = scans.find((s) => s.scanId === compareIds[1]);
-    return a && b ? [a, b] : null;
+    if (!a || !b) return null;
+    const [older, newer] =
+      new Date(a.startedAt).getTime() <= new Date(b.startedAt).getTime() ? [a, b] : [b, a];
+    return { older, newer, diff: compareTwoScans(older, newer) };
   }, [compareIds, scans]);
 
   return (
@@ -71,8 +74,8 @@ export const ScanHistoryView: React.FC<ScanHistoryViewProps> = ({
           <h1 className="text-2xl sm:text-3xl font-bold text-[#151515] dark:text-white">Scan History</h1>
           <p className="text-[15px] text-[#777267] dark:text-[#929292] mt-1">
             {isAuthenticated
-              ? 'Your persisted website audits, scores, and side-by-side comparison.'
-              : 'Showing session scans. Sign in with Google from the top bar to persist scan history across sessions.'}
+              ? 'Your persisted website audits, posture fingerprints, and side-by-side comparison.'
+              : 'Showing session scans. Sign in with Google from the top bar to persist scan history across devices.'}
           </p>
         </div>
       </div>
@@ -124,15 +127,22 @@ export const ScanHistoryView: React.FC<ScanHistoryViewProps> = ({
         </select>
       </div>
 
-      {/* Side-by-Side Comparison Panel */}
-      {comparePair && (
-        <section className="rounded-2xl border border-[#008C55]/40 dark:border-[#00E69A]/40 bg-white dark:bg-[#0B0B0B] p-6 space-y-4">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
+      {/* Side-by-Side Comparison Engine */}
+      {compareData && (
+        <section className="rounded-2xl border border-[#008C55]/40 dark:border-[#00E69A]/40 bg-white dark:bg-[#0B0B0B] p-6 space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <ArrowLeftRight className="w-4 h-4 text-[#008C55] dark:text-[#00E69A]" />
               <h2 className="text-sm font-bold text-[#151515] dark:text-white">
-                Report Comparison: {comparePair[0].normalizedDomain} vs {comparePair[1].normalizedDomain}
+                Comparison: {compareData.older.normalizedDomain} ({new Date(compareData.older.startedAt).toLocaleDateString()}) →{' '}
+                {compareData.newer.normalizedDomain} ({new Date(compareData.newer.startedAt).toLocaleDateString()})
               </h2>
+              {compareData.diff.identicalPosture && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#008C55]/15 text-[#008C55] dark:text-[#00E69A]">
+                  <CheckCircle2 className="w-3 h-3" />
+                  Identical Posture Verified
+                </span>
+              )}
             </div>
             <button
               type="button"
@@ -142,27 +152,77 @@ export const ScanHistoryView: React.FC<ScanHistoryViewProps> = ({
               Clear comparison
             </button>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-            {(['security', 'frontend', 'backend', 'engagement'] as const).map((cat) => {
-              const s1 = comparePair[0].scores?.[cat] ?? null;
-              const s2 = comparePair[1].scores?.[cat] ?? null;
-              const diff = s1 !== null && s2 !== null ? s2 - s1 : null;
+
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
+            {(['overall', 'security', 'frontend', 'backend', 'engagement'] as const).map((cat) => {
+              const s1 = compareData.older.scores?.[cat] ?? null;
+              const s2 = compareData.newer.scores?.[cat] ?? null;
+              const diff = compareData.diff.scoreDeltas[cat];
               return (
-                <div key={cat} className="rounded-xl border border-[#E7E0D3] dark:border-[#222] bg-[#FAF9F5] dark:bg-[#101010] p-4 space-y-1">
-                  <p className="uppercase tracking-wider text-[10px] font-semibold text-[#777267] dark:text-[#929292]">
-                    {cat}
-                  </p>
+                <div key={cat} className="rounded-xl border border-[#E7E0D3] dark:border-[#222] bg-[#FAF9F5] dark:bg-[#101010] p-3.5 space-y-1">
+                  <p className="uppercase tracking-wider text-[10px] font-semibold text-[#777267] dark:text-[#929292]">{cat}</p>
                   <p className="font-mono text-sm font-bold tabular-nums text-[#151515] dark:text-white">
                     {s1 ?? 'N/A'} → {s2 ?? 'N/A'}
                   </p>
                   {diff !== null && (
-                    <p className={`font-mono text-[11px] ${diff >= 0 ? 'text-[#008C55] dark:text-[#00E69A]' : 'text-red-500'}`}>
-                      {diff >= 0 ? `+${diff}` : diff} pts
+                    <p className={`font-mono text-[11px] ${diff > 0 ? 'text-[#008C55] dark:text-[#00E69A]' : diff < 0 ? 'text-red-500' : 'text-[#777267]'}`}>
+                      {diff > 0 ? `+${diff}` : diff} pts
                     </p>
                   )}
                 </div>
               );
             })}
+          </div>
+
+          {/* Detailed Diff Breakdown (Newly Discovered, Resolved, Header Diffs, Metric Deltas) */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            <div className="rounded-xl border border-[#E7E0D3] dark:border-[#222] p-4 space-y-2">
+              <p className="font-bold text-[#151515] dark:text-white">
+                Newly Discovered Issues ({compareData.diff.newlyDiscovered.length})
+              </p>
+              {compareData.diff.newlyDiscovered.length === 0 ? (
+                <p className="text-[#777267]">None — no new weaknesses introduced.</p>
+              ) : (
+                <ul className="space-y-1 text-[#777267] dark:text-[#929292] list-disc pl-4">
+                  {compareData.diff.newlyDiscovered.slice(0, 6).map((f) => (
+                    <li key={f.findingId}>{f.title} ({f.severity})</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-[#E7E0D3] dark:border-[#222] p-4 space-y-2">
+              <p className="font-bold text-[#151515] dark:text-white">
+                Resolved Issues ({compareData.diff.resolvedFindings.length})
+              </p>
+              {compareData.diff.resolvedFindings.length === 0 ? (
+                <p className="text-[#777267]">None resolved between selected scans.</p>
+              ) : (
+                <ul className="space-y-1 text-[#008C55] dark:text-[#00E69A] list-disc pl-4">
+                  {compareData.diff.resolvedFindings.slice(0, 6).map((f) => (
+                    <li key={f.findingId}>{f.title}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-[#E7E0D3] dark:border-[#222] p-4 space-y-2 font-mono">
+              <p className="font-bold font-sans text-[#151515] dark:text-white">
+                Headers &amp; Telemetry Diff
+              </p>
+              <p className="text-[#777267]">
+                Unchanged Findings: {compareData.diff.unchangedCount}
+              </p>
+              <p className="text-[#777267]">
+                DOM Delta: {compareData.diff.metricChanges.domNodesDelta ?? 0} nodes
+              </p>
+              <p className="text-[#777267]">
+                TTFB Delta: {compareData.diff.metricChanges.ttfbDeltaMs ?? 0} ms
+              </p>
+              <p className="text-[#777267]">
+                Header Changes: {compareData.diff.changedHeaders.length}
+              </p>
+            </div>
           </div>
         </section>
       )}

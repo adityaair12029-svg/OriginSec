@@ -17,7 +17,8 @@ test('Dirty Dozen #1 & #12: Global default-deny and verified email mandate exist
 test('Dirty Dozen #2 & #3: Cross-user read & blanket list scraping blocked', () => {
   assert.doesNotMatch(rulesText, /allow read:\s*if\s*isSignedIn\(\);/);
   assert.doesNotMatch(rulesText, /allow list:\s*if\s*isSignedIn\(\);/);
-  assert.match(rulesText, /allow list:\s*if\s*isVerifiedUser\(\) && resource\.data\.ownerUid == request\.auth\.uid;/);
+  const ownerListMatches = rulesText.match(/allow list:\s*if\s*isVerifiedUser\(\) && resource\.data\.ownerUid == request\.auth\.uid;/g) ?? [];
+  assert.ok(ownerListMatches.length >= 10, 'Every owner-scoped collection must restrict list queries on resource.data.ownerUid');
 });
 
 test('Dirty Dozen #4 & #5: Self-assigned owner/admin role escalation blocked', () => {
@@ -25,9 +26,9 @@ test('Dirty Dozen #4 & #5: Self-assigned owner/admin role escalation blocked', (
   assert.match(rulesText, /incoming\(\)\.role == existing\(\)\.role/);
 });
 
-test('Dirty Dozen #6: Strict keys().hasOnly() prevents shadow/ghost field injection', () => {
+test('Dirty Dozen #6: Strict keys().hasOnly() prevents shadow/ghost field injection on all 11 entity types', () => {
   const matches = rulesText.match(/\.keys\(\)\.hasOnly\(/g) ?? [];
-  assert.ok(matches.length >= 8, 'Every entity validator must enforce keys().hasOnly()');
+  assert.ok(matches.length >= 11, 'Every entity validator must enforce keys().hasOnly()');
 });
 
 test('Dirty Dozen #7 & #8: Identity spoofing & orphaned scanFindings prevented via Master Gate', () => {
@@ -40,4 +41,7 @@ test('Dirty Dozen #9, #10, #11: ID regex, size limits, request.time, and termina
   assert.match(rulesText, /isValidId\(/);
   assert.match(rulesText, /incoming\(\)\.startedAt == request\.time/);
   assert.match(rulesText, /!\(existing\(\)\.status in \['completed', 'failed', 'cancelled'\]\)/);
+  assert.match(rulesText, /match \/websites\/\{websiteId\}/);
+  assert.match(rulesText, /match \/remediationTasks\/\{taskId\}/);
+  assert.match(rulesText, /match \/notifications\/\{notificationId\}/);
 });

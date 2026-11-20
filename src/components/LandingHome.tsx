@@ -1,32 +1,41 @@
 import React, { useState } from 'react';
 import { AlertCircle, ShieldCheck } from 'lucide-react';
+import type { ScanProfileId } from '../types/audit';
+import { SCAN_PROFILES } from '../lib/scanner/profiles';
 
 interface LandingHomeProps {
-  onStartScan: (params: { targetUrl: string; authorizedConfirmed: boolean; maxPages: number; crawlDepth: number }) => void;
+  onStartScan: (params: {
+    targetUrl: string;
+    authorizedConfirmed: boolean;
+    scanProfile: ScanProfileId;
+    maxPages: number;
+    crawlDepth: number;
+  }) => void;
   isSubmitting: boolean;
   errorMessage: string | null;
+  defaultProfile?: ScanProfileId;
 }
 
 const CATEGORIES = [
   {
     title: 'Cybersecurity & Hardening',
     description:
-      'SSL/TLS posture, HTTP security headers, cookie flags, DNS security signals, and externally observable security configuration.',
+      'SSL/TLS posture, HTTP security headers, cookie flags, DNS/CAA records, and externally observable security configuration.',
   },
   {
     title: 'Front-End & UI/UX',
     description:
-      'DOM structure, page metadata, responsive layout signals, accessibility, render-blocking resources, and frontend performance.',
+      'DOM structure, page metadata, responsive layout signals, WCAG accessibility checks, render-blocking scripts, and image optimization.',
   },
   {
     title: 'Back-End & Architecture',
     description:
-      'Observable server response time, API health, caching directives, HTTP behaviour, and connected infrastructure configuration.',
+      'Deterministic server response timing breakdown, compression, caching directives, CORS posture, and infrastructure verification.',
   },
   {
     title: 'Product & Engagement',
     description:
-      'CTA clarity, navigation structure, content quality, usability, accessibility, and improvement recommendations.',
+      'CTA clarity, heading structure, SEO meta & canonical tags, sitemap/robots validation, broken internal links, and remediation tracking.',
   },
 ];
 
@@ -34,11 +43,14 @@ export const LandingHome: React.FC<LandingHomeProps> = ({
   onStartScan,
   isSubmitting,
   errorMessage,
+  defaultProfile = 'standard',
 }) => {
   const [urlInput, setUrlInput] = useState('');
   const [authorizedConfirmed, setAuthorizedConfirmed] = useState(false);
-  const [crawlDepthMode, setCrawlDepthMode] = useState<'standard' | 'deep'>('standard');
+  const [scanProfile, setScanProfile] = useState<ScanProfileId>(defaultProfile);
   const [localValidationError, setLocalValidationError] = useState<string | null>(null);
+
+  const selectedProfileDef = SCAN_PROFILES[scanProfile] || SCAN_PROFILES.standard;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,8 +90,9 @@ export const LandingHome: React.FC<LandingHomeProps> = ({
     onStartScan({
       targetUrl: candidate,
       authorizedConfirmed: true,
-      maxPages: crawlDepthMode === 'deep' ? 20 : 8,
-      crawlDepth: crawlDepthMode === 'deep' ? 2 : 1,
+      scanProfile,
+      maxPages: selectedProfileDef.maxPages,
+      crawlDepth: selectedProfileDef.crawlDepth,
     });
   };
 
@@ -131,7 +144,7 @@ export const LandingHome: React.FC<LandingHomeProps> = ({
             </button>
           </div>
 
-          {/* Authorization Statement & Crawl Budget */}
+          {/* Authorization Statement & Scan Profile */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 px-1 text-left">
             <label className="inline-flex items-start sm:items-center gap-2.5 text-[13px] text-[#777267] dark:text-[#929292] cursor-pointer select-none">
               <input
@@ -148,24 +161,27 @@ export const LandingHome: React.FC<LandingHomeProps> = ({
 
             <div className="inline-flex items-center gap-1.5 text-[13px] text-[#777267] dark:text-[#929292] shrink-0">
               <ShieldCheck className="w-4 h-4 text-[#008C55] dark:text-[#00E69A]" />
-              <label htmlFor="crawl-budget-select" className="sr-only">
-                Crawl depth
+              <label htmlFor="scan-profile-select" className="sr-only">
+                Scan Profile
               </label>
               <select
-                id="crawl-budget-select"
-                value={crawlDepthMode}
-                onChange={(e) => setCrawlDepthMode(e.target.value as 'standard' | 'deep')}
+                id="scan-profile-select"
+                value={scanProfile}
+                onChange={(e) => setScanProfile(e.target.value as ScanProfileId)}
                 className="bg-transparent text-[13px] font-medium text-[#151515] dark:text-white focus:outline-none cursor-pointer"
               >
-                <option value="standard" className="bg-white dark:bg-[#0B0B0B]">
-                  Standard (max 8 pages)
-                </option>
-                <option value="deep" className="bg-white dark:bg-[#0B0B0B]">
-                  Extended (max 20 pages)
-                </option>
+                {Object.values(SCAN_PROFILES).map((prof) => (
+                  <option key={prof.id} value={prof.id} className="bg-white dark:bg-[#0B0B0B]">
+                    {prof.shortLabel}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
+
+          <p className="text-[12px] text-[#777267] dark:text-[#888] text-left px-1">
+            {selectedProfileDef.label}: {selectedProfileDef.description}
+          </p>
 
           {displayError && (
             <div

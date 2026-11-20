@@ -6,6 +6,40 @@ export function isGeminiConfigured(): boolean {
   return Boolean(key && key !== 'MY_GEMINI_API_KEY' && key.trim().length > 10);
 }
 
+function buildSanitizedScanContext(
+  scan: Pick<WebsiteScan, 'normalizedDomain' | 'targetUrl' | 'scores' | 'coverage' | 'metrics' | 'findings'>
+) {
+  const sanitizedFindings = (scan.findings || [])
+    .filter((f) => f.severity !== 'passed')
+    .slice(0, 22)
+    .map((f) => ({
+      ruleId: f.ruleId,
+      category: f.category,
+      subCategory: f.subCategory,
+      title: f.title,
+      severity: f.severity,
+      observedValue: f.observedValue,
+      evidence: f.evidence,
+      status: f.status,
+    }));
+
+  return {
+    domain: scan.normalizedDomain,
+    targetUrl: scan.targetUrl,
+    scores: scan.scores,
+    coverage: scan.coverage,
+    metrics: {
+      ttfbMs: scan.metrics?.ttfbMs,
+      totalResponseTimeMs: scan.metrics?.totalResponseTimeMs,
+      statusCode: scan.metrics?.statusCode,
+      domNodeCount: scan.metrics?.domNodeCount,
+      tlsProtocol: scan.metrics?.tls?.protocol,
+      tlsDaysRemaining: scan.metrics?.tls?.daysRemaining,
+    },
+    findings: sanitizedFindings,
+  };
+}
+
 /**
  * Generates an understandable, evidence-grounded explanation of verified scan findings
  * for developers and website owners using Gemini (@google/genai).
@@ -31,35 +65,7 @@ export async function explainScanFindingsWithGemini(params: {
     },
   });
 
-  // Pass strictly sanitized deterministic evidence (no cookies, secrets, or tokens)
-  const sanitizedFindings = (params.scan.findings || [])
-    .filter((f) => f.severity !== 'passed')
-    .slice(0, 18)
-    .map((f) => ({
-      category: f.category,
-      title: f.title,
-      severity: f.severity,
-      observedValue: f.observedValue,
-      evidence: f.evidence,
-      status: f.status,
-    }));
-
-  const sanitizedContext = {
-    domain: params.scan.normalizedDomain,
-    targetUrl: params.scan.targetUrl,
-    scores: params.scan.scores,
-    coverage: params.scan.coverage,
-    metrics: {
-      ttfbMs: params.scan.metrics?.ttfbMs,
-      totalResponseTimeMs: params.scan.metrics?.totalResponseTimeMs,
-      statusCode: params.scan.metrics?.statusCode,
-      domNodeCount: params.scan.metrics?.domNodeCount,
-      tlsProtocol: params.scan.metrics?.tls?.protocol,
-      tlsDaysRemaining: params.scan.metrics?.tls?.daysRemaining,
-    },
-    findings: sanitizedFindings,
-  };
-
+  const sanitizedContext = buildSanitizedScanContext(params.scan);
   const audienceInstruction =
     params.audience === 'developer'
       ? 'Write a concise, actionable technical remediation brief for a full-stack/DevOps engineer. Include exact priority order (Fix Immediately, Fix Soon, Optimizations) and concrete server/header/HTML guidance.'
@@ -84,6 +90,49 @@ export async function explainScanFindingsWithGemini(params: {
     return {
       available: true,
       error: err instanceof Error ? err.message : 'Failed to generate AI explanation.',
+    };
+  }
+}
+
+export async function askAiAboutScanWithGemini(params: {
+  scan: Pick<WebsiteScan, 'normalizedDomain' | 'targetUrl' | 'scores' | 'coverage' | 'metrics' | 'findings'>;
+  question: string;
+}): Promise<{ available: boolean; answer?: string; error?: string }> {
+  if (!isGeminiConfigured()) {
+    return {
+      available: false,
+      error: 'GEMINI_API_KEY is not configured on the server.',
+    };
+  }
+
+  const ai = new GoogleGenAI({
+    apiKey: process.env.GEMINI_API_KEY,
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build',
+      },
+    },
+  });
+
+  const sanitizedContext = buildSanitizedScanContext(params.scan);
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-4-hydrogen',
+      contents: `User question: ${params.question}\n\nVerified OriginSec Evidence JSON for ${sanitizedContext.domain}:\n${JSON.stringify(sanitizedContext, null, 2)}`,
+      config: {
+        systemInstruction:
+          'You are ORIGINSEC AI ANALYST. Answer the user question using ONLY verified facts in the supplied OriginSec scan evidence JSON. Never invent vulnerabilities, database state, or hidden endpoints. If something was not assessed or is unavailable, state that explicitly. Keep answers concise (<= 260 words).',
+      },
+    });
+    const text = response.text?.trim();
+    if (!text) {
+      return { available: true, error: 'Model returned an empty answer.' };
+    }
+    return { available: true, answer: text };
+  } catch (err) {
+    return {
+      available: true,
+      error: err instanceof Error ? err.message : 'Failed to answer question.',
     };
   }
 }

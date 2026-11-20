@@ -21,10 +21,14 @@ import type {
   IntegrationRecord,
   MonitoringEvent,
   MonitoringTarget,
+  NotificationItem,
+  RemediationTask,
   ScanFinding,
+  ScanProfileId,
   ThemeMode,
   UserProfile,
   VerifiedDomain,
+  WebsiteRecord,
   WebsiteScan,
 } from '../../types/audit';
 
@@ -127,6 +131,8 @@ export async function saveScanToFirestore(scan: WebsiteScan, ownerUid: string): 
       ownerUid,
       targetUrl: clampStr(scan.targetUrl, 2048),
       normalizedDomain: clampStr(scan.normalizedDomain, 255),
+      ...(scan.scanProfile ? { scanProfile: scan.scanProfile } : {}),
+      ...(scan.postureFingerprint ? { postureFingerprint: clampStr(scan.postureFingerprint, 64) } : {}),
       status: scan.status,
       currentStage: clampStr(scan.currentStage, 120),
       progressPercent: Math.min(100, Math.max(0, Math.round(scan.progressPercent))),
@@ -151,9 +157,11 @@ export async function saveScanToFirestore(scan: WebsiteScan, ownerUid: string): 
         const fRef = doc(db, 'scanFindings', safeFindingId);
         batch.set(fRef, {
           findingId: safeFindingId,
+          ...(f.ruleId ? { ruleId: clampStr(f.ruleId, 80) } : {}),
           scanId: clampStr(scan.scanId, 128),
           ownerUid,
           category: f.category,
+          ...(f.subCategory ? { subCategory: clampStr(f.subCategory, 40) } : {}),
           title: clampStr(f.title, 200),
           severity: f.severity,
           priorityGroup: f.priorityGroup,
@@ -166,6 +174,8 @@ export async function saveScanToFirestore(scan: WebsiteScan, ownerUid: string): 
           remediation: clampStr(f.remediation, 2500),
           verification: clampStr(f.verification, 1500),
           status: f.status,
+          ...(f.confidence ? { confidence: clampStr(f.confidence, 40) } : {}),
+          ...(f.manualReviewRequired !== undefined ? { manualReviewRequired: Boolean(f.manualReviewRequired) } : {}),
           createdAt: serverTimestamp(),
         });
       }
@@ -205,6 +215,8 @@ export function subscribeUserScans(
           ownerUid: data.ownerUid,
           targetUrl: data.targetUrl,
           normalizedDomain: data.normalizedDomain,
+          scanProfile: data.scanProfile,
+          postureFingerprint: data.postureFingerprint,
           status: data.status,
           currentStage: data.currentStage || 'Completed',
           progressPercent: data.progressPercent ?? 100,
@@ -215,7 +227,7 @@ export function subscribeUserScans(
           aiExplanation: data.aiExplanation,
           metrics: data.metrics,
           findingsCount: data.findingsCount,
-          scannerVersion: data.scannerVersion || 'originsec-engine-1.0',
+          scannerVersion: data.scannerVersion || 'originsec-engine-2.0',
           startedAt: toIsoString(data.startedAt),
           completedAt: data.completedAt ? toIsoString(data.completedAt) : null,
           updatedAt: toIsoString(data.updatedAt),
@@ -243,9 +255,11 @@ export async function getScanFindings(scanId: string, ownerUid: string): Promise
       const data = d.data();
       return {
         findingId: data.findingId,
+        ruleId: data.ruleId,
         scanId: data.scanId,
         ownerUid: data.ownerUid,
         category: data.category,
+        subCategory: data.subCategory,
         title: data.title,
         severity: data.severity,
         priorityGroup: data.priorityGroup || 'best_practice',
@@ -258,11 +272,34 @@ export async function getScanFindings(scanId: string, ownerUid: string): Promise
         remediation: data.remediation || '',
         verification: data.verification,
         status: data.status,
+        confidence: data.confidence,
+        manualReviewRequired: data.manualReviewRequired,
+        remediationNote: data.remediationNote,
+        dueDate: data.dueDate ?? null,
+        resolvedAt: data.resolvedAt ?? null,
         createdAt: toIsoString(data.createdAt),
       };
     });
   } catch (error) {
     handleFirestoreError(error, OperationType.LIST, path);
+  }
+}
+
+export async function updateFindingStatusInFirestore(
+  findingId: string,
+  updates: Partial<Pick<ScanFinding, 'status' | 'remediationNote' | 'dueDate' | 'resolvedAt'>>
+) {
+  if (!isFirebaseConfigured || !auth.currentUser) return;
+  const path = `scanFindings/${findingId}`;
+  try {
+    const clean: Record<string, unknown> = {};
+    if (updates.status !== undefined) clean.status = updates.status;
+    if (updates.remediationNote !== undefined) clean.remediationNote = clampStr(updates.remediationNote, 2000);
+    if (updates.dueDate !== undefined) clean.dueDate = updates.dueDate ? clampStr(updates.dueDate, 40) : null;
+    if (updates.resolvedAt !== undefined) clean.resolvedAt = updates.resolvedAt ? clampStr(updates.resolvedAt, 40) : null;
+    await updateDoc(doc(db, 'scanFindings', findingId), clean);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
   }
 }
 
@@ -293,6 +330,305 @@ export async function deleteAllUserScanHistory(ownerUid: string): Promise<void> 
     await batch.commit();
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+// --- Managed Websites (Phase 2) ---
+export function subscribeWebsites(ownerUid: string, onData: (items: WebsiteRecord[]) => void): Unsubscribe {
+  const path = 'websites';
+  const q = query(collection(db, path), where('ownerUid', '==', ownerUid));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const items = snap.docs.map((d) => {
+        const v = d.data();
+        return {
+          websiteId: v.websiteId,
+          ownerUid: v.ownerUid,
+          name: v.name,
+          targetUrl: v.targetUrl,
+          normalizedDomain: v.normalizedDomain,
+          verificationStatus: v.verificationStatus || 'unverified',
+          defaultProfile: (v.defaultProfile || 'standard') as ScanProfileId,
+          monitoringPaused: Boolean(v.monitoringPaused),
+          latestScanId: v.latestScanId ?? null,
+          latestOverallScore: v.latestOverallScore ?? null,
+          lastScannedAt: v.lastScannedAt ?? null,
+          createdAt: toIsoString(v.createdAt),
+          updatedAt: toIsoString(v.updatedAt),
+        } as WebsiteRecord;
+      });
+      items.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      onData(items);
+    },
+    (err) => logFirestoreError(err, OperationType.LIST, path)
+  );
+}
+
+export async function createWebsiteRecord(record: {
+  websiteId: string;
+  ownerUid: string;
+  name: string;
+  targetUrl: string;
+  normalizedDomain: string;
+  verificationStatus?: WebsiteRecord['verificationStatus'];
+  defaultProfile?: ScanProfileId;
+  latestScanId?: string | null;
+  latestOverallScore?: number | null;
+  lastScannedAt?: string | null;
+}) {
+  const path = `websites/${record.websiteId}`;
+  try {
+    await setDoc(doc(db, 'websites', record.websiteId), {
+      websiteId: clampStr(record.websiteId, 128),
+      ownerUid: record.ownerUid,
+      name: clampStr(record.name, 150),
+      targetUrl: clampStr(record.targetUrl, 2048),
+      normalizedDomain: clampStr(record.normalizedDomain, 255),
+      verificationStatus: record.verificationStatus || 'unverified',
+      defaultProfile: record.defaultProfile || 'standard',
+      monitoringPaused: false,
+      ...(record.latestScanId ? { latestScanId: clampStr(record.latestScanId, 128) } : {}),
+      ...(record.latestOverallScore !== undefined && record.latestOverallScore !== null
+        ? { latestOverallScore: Math.round(record.latestOverallScore) }
+        : {}),
+      ...(record.lastScannedAt ? { lastScannedAt: clampStr(record.lastScannedAt, 40) } : {}),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.CREATE, path);
+  }
+}
+
+export async function updateWebsiteRecord(
+  websiteId: string,
+  updates: Partial<
+    Pick<
+      WebsiteRecord,
+      'name' | 'targetUrl' | 'verificationStatus' | 'defaultProfile' | 'monitoringPaused' | 'latestScanId' | 'latestOverallScore' | 'lastScannedAt'
+    >
+  >
+) {
+  const path = `websites/${websiteId}`;
+  try {
+    const clean: Record<string, unknown> = { updatedAt: serverTimestamp() };
+    if (updates.name !== undefined) clean.name = clampStr(updates.name, 150);
+    if (updates.targetUrl !== undefined) clean.targetUrl = clampStr(updates.targetUrl, 2048);
+    if (updates.verificationStatus !== undefined) clean.verificationStatus = updates.verificationStatus;
+    if (updates.defaultProfile !== undefined) clean.defaultProfile = updates.defaultProfile;
+    if (updates.monitoringPaused !== undefined) clean.monitoringPaused = updates.monitoringPaused;
+    if (updates.latestScanId !== undefined) clean.latestScanId = updates.latestScanId ? clampStr(updates.latestScanId, 128) : null;
+    if (updates.latestOverallScore !== undefined) clean.latestOverallScore = updates.latestOverallScore !== null ? Math.round(updates.latestOverallScore) : null;
+    if (updates.lastScannedAt !== undefined) clean.lastScannedAt = updates.lastScannedAt ? clampStr(updates.lastScannedAt, 40) : null;
+    await updateDoc(doc(db, 'websites', websiteId), clean);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, path);
+  }
+}
+
+export async function deleteWebsiteRecord(websiteId: string) {
+  const path = `websites/${websiteId}`;
+  try {
+    await deleteDoc(doc(db, 'websites', websiteId));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, path);
+  }
+}
+
+// --- Remediation Workspace (Phase 17) ---
+export function subscribeRemediationTasks(ownerUid: string, onData: (items: RemediationTask[]) => void): Unsubscribe {
+  const path = 'remediationTasks';
+  const q = query(collection(db, path), where('ownerUid', '==', ownerUid));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const items = snap.docs.map((d) => {
+        const v = d.data();
+        return {
+          taskId: v.taskId,
+          ownerUid: v.ownerUid,
+          scanId: v.scanId,
+          findingId: v.findingId,
+          ruleId: v.ruleId,
+          domain: v.domain,
+          targetUrl: v.targetUrl,
+          title: v.title,
+          category: v.category,
+          severity: v.severity,
+          status: v.status,
+          priority: v.priority,
+          notes: v.notes || '',
+          dueDate: v.dueDate ?? null,
+          lastVerifiedAt: v.lastVerifiedAt ?? null,
+          verificationResult: v.verificationResult,
+          createdAt: toIsoString(v.createdAt),
+          updatedAt: toIsoString(v.updatedAt),
+        } as RemediationTask;
+      });
+      items.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      onData(items);
+    },
+    (err) => logFirestoreError(err, OperationType.LIST, path)
+  );
+}
+
+export async function createRemediationTask(task: {
+  taskId: string;
+  ownerUid: string;
+  scanId: string;
+  findingId: string;
+  ruleId?: string;
+  domain: string;
+  targetUrl: string;
+  title: string;
+  category: RemediationTask['category'];
+  severity: RemediationTask['severity'];
+  priority: RemediationTask['priority'];
+  notes?: string;
+  dueDate?: string | null;
+}) {
+  const path = `remediationTasks/${task.taskId}`;
+  try {
+    await setDoc(doc(db, 'remediationTasks', task.taskId), {
+      taskId: clampStr(task.taskId, 128),
+      ownerUid: task.ownerUid,
+      scanId: clampStr(task.scanId, 128),
+      findingId: clampStr(task.findingId, 128),
+      ...(task.ruleId ? { ruleId: clampStr(task.ruleId, 80) } : {}),
+      domain: clampStr(task.domain, 255),
+      targetUrl: clampStr(task.targetUrl, 2048),
+      title: clampStr(task.title, 200),
+      category: task.category,
+      severity: task.severity,
+      status: 'open',
+      priority: task.priority,
+      notes: clampStr(task.notes || '', 2000),
+      dueDate: task.dueDate ? clampStr(task.dueDate, 40) : null,
+      lastVerifiedAt: null,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.CREATE, path);
+  }
+}
+
+export async function updateRemediationTask(
+  taskId: string,
+  updates: Partial<
+    Pick<RemediationTask, 'status' | 'priority' | 'notes' | 'dueDate' | 'lastVerifiedAt' | 'verificationResult'>
+  >
+) {
+  const path = `remediationTasks/${taskId}`;
+  try {
+    const clean: Record<string, unknown> = { updatedAt: serverTimestamp() };
+    if (updates.status !== undefined) clean.status = updates.status;
+    if (updates.priority !== undefined) clean.priority = updates.priority;
+    if (updates.notes !== undefined) clean.notes = clampStr(updates.notes, 2000);
+    if (updates.dueDate !== undefined) clean.dueDate = updates.dueDate ? clampStr(updates.dueDate, 40) : null;
+    if (updates.lastVerifiedAt !== undefined) clean.lastVerifiedAt = updates.lastVerifiedAt ? clampStr(updates.lastVerifiedAt, 40) : null;
+    if (updates.verificationResult !== undefined) clean.verificationResult = clampStr(updates.verificationResult, 1000);
+    await updateDoc(doc(db, 'remediationTasks', taskId), clean);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, path);
+  }
+}
+
+export async function deleteRemediationTask(taskId: string) {
+  const path = `remediationTasks/${taskId}`;
+  try {
+    await deleteDoc(doc(db, 'remediationTasks', taskId));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, path);
+  }
+}
+
+// --- Notification Centre (Phase 20) ---
+export function subscribeNotifications(ownerUid: string, onData: (items: NotificationItem[]) => void): Unsubscribe {
+  const path = 'notifications';
+  const q = query(collection(db, path), where('ownerUid', '==', ownerUid));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const items = snap.docs.map((d) => {
+        const v = d.data();
+        return {
+          notificationId: v.notificationId,
+          ownerUid: v.ownerUid,
+          type: v.type,
+          title: v.title,
+          message: v.message,
+          domain: v.domain,
+          relatedId: v.relatedId,
+          read: Boolean(v.read),
+          createdAt: toIsoString(v.createdAt),
+        } as NotificationItem;
+      });
+      items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      onData(items.slice(0, 60));
+    },
+    (err) => logFirestoreError(err, OperationType.LIST, path)
+  );
+}
+
+export async function createNotificationItem(item: {
+  notificationId: string;
+  ownerUid: string;
+  type: NotificationItem['type'];
+  title: string;
+  message: string;
+  domain?: string;
+  relatedId?: string;
+}) {
+  if (!isFirebaseConfigured || !auth.currentUser) return;
+  const path = `notifications/${item.notificationId}`;
+  try {
+    await setDoc(doc(db, 'notifications', item.notificationId), {
+      notificationId: clampStr(item.notificationId, 128),
+      ownerUid: item.ownerUid,
+      type: item.type,
+      title: clampStr(item.title, 200),
+      message: clampStr(item.message, 1000),
+      ...(item.domain ? { domain: clampStr(item.domain, 255) } : {}),
+      ...(item.relatedId ? { relatedId: clampStr(item.relatedId, 128) } : {}),
+      read: false,
+      createdAt: serverTimestamp(),
+    });
+  } catch (err) {
+    logFirestoreError(err, OperationType.CREATE, path);
+  }
+}
+
+export async function markNotificationRead(notificationId: string, read = true) {
+  const path = `notifications/${notificationId}`;
+  try {
+    await updateDoc(doc(db, 'notifications', notificationId), { read });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, path);
+  }
+}
+
+export async function markAllNotificationsRead(notifications: NotificationItem[]) {
+  const unread = notifications.filter((n) => !n.read);
+  if (unread.length === 0) return;
+  try {
+    const batch = writeBatch(db);
+    for (const n of unread) {
+      batch.update(doc(db, 'notifications', n.notificationId), { read: true });
+    }
+    await batch.commit();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, 'notifications');
+  }
+}
+
+export async function deleteNotificationItem(notificationId: string) {
+  const path = `notifications/${notificationId}`;
+  try {
+    await deleteDoc(doc(db, 'notifications', notificationId));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, path);
   }
 }
 

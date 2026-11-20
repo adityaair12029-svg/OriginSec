@@ -3,14 +3,15 @@ import {
   Activity,
   ChevronDown,
   ChevronUp,
-  Download,
   ExternalLink,
   FileJson,
   FileSpreadsheet,
   FileText,
   RefreshCw,
+  Send,
   ShieldAlert,
   Sparkles,
+  Wrench,
 } from 'lucide-react';
 import type { FindingCategory, PriorityGroup, ScanFinding, SeverityLevel, WebsiteScan } from '../types/audit';
 import { CircularGauge } from './CircularGauge';
@@ -20,7 +21,9 @@ interface AuditReportViewProps {
   scan: WebsiteScan;
   onRescan: (url: string) => void;
   onAddToMonitoring?: (scan: WebsiteScan) => void;
+  onTrackFindingInRemediation?: (finding: ScanFinding, scan: WebsiteScan) => Promise<void>;
   onGenerateAiBrief?: (scan: WebsiteScan, audience: 'owner' | 'developer') => Promise<string | null>;
+  onAskAiQuestion?: (scan: WebsiteScan, question: string) => Promise<string | null>;
   isGeneratingAi?: boolean;
   aiError?: string | null;
 }
@@ -54,15 +57,30 @@ const PRIORITY_LABELS: Record<PriorityGroup, string> = {
   long_term: 'Long-term improvements',
 };
 
-const FindingCard: React.FC<{ finding: ScanFinding }> = ({ finding }) => {
+const FindingCard: React.FC<{
+  finding: ScanFinding;
+  scan: WebsiteScan;
+  onTrack?: (finding: ScanFinding, scan: WebsiteScan) => Promise<void>;
+}> = ({ finding, scan, onTrack }) => {
   const [expanded, setExpanded] = useState(false);
+  const [tracked, setTracked] = useState(false);
+  const isActionable = finding.severity !== 'passed' && finding.status !== 'not_assessed';
 
   return (
     <article className="rounded-xl border border-[#E7E0D3] dark:border-[#222] bg-[#FAF9F5] dark:bg-[#101010] p-6 space-y-3.5 transition-colors">
       <div className="flex items-start justify-between gap-3">
-        <h4 className="text-base font-semibold text-[#151515] dark:text-white leading-snug">
-          {finding.title}
-        </h4>
+        <div className="space-y-1 min-w-0">
+          <h4 className="text-base font-semibold text-[#151515] dark:text-white leading-snug">
+            {finding.title}
+          </h4>
+          {(finding.ruleId || finding.confidence) && (
+            <p className="text-[11px] font-mono text-[#777267] dark:text-[#888]">
+              {finding.ruleId ? `Rule ${finding.ruleId}` : ''}
+              {finding.ruleId && finding.confidence ? ' · ' : ''}
+              {finding.confidence ? `Evidence: ${finding.confidence.replace('_', ' ')}` : ''}
+            </p>
+          )}
+        </div>
         <span
           className={`px-2.5 py-0.5 rounded-md border text-[11px] font-bold tracking-wider uppercase whitespace-nowrap shrink-0 ${
             SEVERITY_BADGE_STYLES[finding.severity]
@@ -86,15 +104,32 @@ const FindingCard: React.FC<{ finding: ScanFinding }> = ({ finding }) => {
           )}
         </p>
 
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          aria-expanded={expanded}
-          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[#777267] dark:text-[#929292] hover:text-[#151515] dark:hover:text-white cursor-pointer pt-1 transition-colors"
-        >
-          {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          {expanded ? 'Hide evidence & verification' : 'Inspect evidence, impact & verification'}
-        </button>
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+            className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[#777267] dark:text-[#929292] hover:text-[#151515] dark:hover:text-white cursor-pointer transition-colors"
+          >
+            {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            {expanded ? 'Hide evidence & verification' : 'Inspect evidence, impact & verification'}
+          </button>
+
+          {isActionable && onTrack && (
+            <button
+              type="button"
+              onClick={async () => {
+                await onTrack(finding, scan);
+                setTracked(true);
+              }}
+              disabled={tracked}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-[#E7E0D3] dark:border-[#252525] text-[#151515] dark:text-white hover:border-[#008C55] dark:hover:border-[#00E69A] disabled:opacity-60 cursor-pointer"
+            >
+              <Wrench className="w-3 h-3 text-[#008C55] dark:text-[#00E69A]" />
+              {tracked ? 'Added to Remediation' : 'Track in Remediation'}
+            </button>
+          )}
+        </div>
 
         {expanded && (
           <div className="pt-2.5 space-y-2 text-[13px] text-[#777267] dark:text-[#929292] border-t border-dashed border-[#E7E0D3] dark:border-[#222]">
@@ -129,7 +164,9 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
   scan,
   onRescan,
   onAddToMonitoring,
+  onTrackFindingInRemediation,
   onGenerateAiBrief,
+  onAskAiQuestion,
   isGeneratingAi,
   aiError,
 }) => {
@@ -137,6 +174,9 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
   const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [audience, setAudience] = useState<'owner' | 'developer'>('owner');
   const [localAiText, setLocalAiText] = useState<string | null>(scan.aiExplanation || null);
+  const [askInput, setAskInput] = useState('');
+  const [askAnswer, setAskAnswer] = useState<string | null>(null);
+  const [isAskingAi, setIsAskingAi] = useState(false);
 
   const findings = scan.findings || [];
 
@@ -173,6 +213,18 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
     if (result) setLocalAiText(result);
   };
 
+  const handleAskSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onAskAiQuestion || !askInput.trim()) return;
+    setIsAskingAi(true);
+    try {
+      const answer = await onAskAiQuestion(scan, askInput.trim());
+      if (answer) setAskAnswer(answer);
+    } finally {
+      setIsAskingAi(false);
+    }
+  };
+
   return (
     <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8 animate-fade-up">
       {/* Top Report Header */}
@@ -187,7 +239,15 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-[#777267] dark:text-[#929292] pt-1 font-mono tabular-nums">
             <span>ID: {scan.scanId}</span>
             <span aria-hidden="true">·</span>
-            <span>Status: {scan.status}</span>
+            <span>Profile: {scan.scanProfile || scan.coverage?.scanProfile || 'standard'}</span>
+            {scan.postureFingerprint && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span title="Deterministic Posture Fingerprint across devices">
+                  Fingerprint: {scan.postureFingerprint}
+                </span>
+              </>
+            )}
             <span aria-hidden="true">·</span>
             <span>{new Date(scan.completedAt || scan.startedAt).toLocaleString()}</span>
             <span aria-hidden="true">·</span>
@@ -274,13 +334,28 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
         </p>
       </section>
 
-      {/* Four Score Ring Cards matching Screenshots 3 & 4 */}
+      {/* Four Score Ring Cards */}
       <section aria-label="Category Scores" className="grid grid-cols-2 lg:grid-cols-4 gap-5">
         <CircularGauge score={scan.scores?.security ?? null} label="SECURITY" />
         <CircularGauge score={scan.scores?.frontend ?? null} label="FRONT-END" />
         <CircularGauge score={scan.scores?.backend ?? null} label="BACK-END" />
         <CircularGauge score={scan.scores?.engagement ?? null} label="ENGAGEMENT" />
       </section>
+
+      {/* Sub-Scores Strip (SEO / Accessibility / Performance / Overall) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+        {[
+          { label: 'Overall Score', value: `${scan.scores?.overall ?? 'N/A'}/100` },
+          { label: 'SEO Posture', value: `${scan.scores?.seo ?? scan.scores?.engagement ?? 'N/A'}/100` },
+          { label: 'Accessibility Signals', value: `${scan.scores?.accessibility ?? scan.scores?.frontend ?? 'N/A'}/100` },
+          { label: 'Performance Score', value: `${scan.scores?.performance ?? scan.scores?.backend ?? 'N/A'}/100` },
+        ].map((sub) => (
+          <div key={sub.label} className="rounded-xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] px-4 py-3 flex items-center justify-between">
+            <span className="text-[#777267] dark:text-[#929292]">{sub.label}</span>
+            <span className="font-mono font-bold tabular-nums text-[#151515] dark:text-white">{sub.value}</span>
+          </div>
+        ))}
+      </div>
 
       {/* Report Sub-Navigation Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E7E0D3] dark:border-[#1E1E1E] pb-3">
@@ -290,7 +365,7 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
               { id: 'findings', label: `Checks & Findings (${findings.length})` },
               { id: 'recommendations', label: 'Recommendation Priority' },
               { id: 'telemetry', label: 'Metrics, TLS, DNS & Charts' },
-              { id: 'ai', label: 'AI Analyst Brief' },
+              { id: 'ai', label: 'AI Analyst & Q&A' },
             ] as const
           ).map((tab) => (
             <button
@@ -360,7 +435,7 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
                   ) : (
                     <div className="space-y-4">
                       {catFindings.map((f) => (
-                        <FindingCard key={f.findingId} finding={f} />
+                        <FindingCard key={f.findingId} finding={f} scan={scan} onTrack={onTrackFindingInRemediation} />
                       ))}
                     </div>
                   )}
@@ -388,7 +463,7 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
                       {CATEGORY_TITLES[cat]}
                     </h4>
                     {items.map((f) => (
-                      <FindingCard key={f.findingId} finding={f} />
+                      <FindingCard key={f.findingId} finding={f} scan={scan} />
                     ))}
                   </div>
                 );
@@ -419,7 +494,7 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {items.map((item) => (
-                    <FindingCard key={item.findingId} finding={item} />
+                    <FindingCard key={item.findingId} finding={item} scan={scan} onTrack={onTrackFindingInRemediation} />
                   ))}
                 </div>
               </section>
@@ -434,7 +509,7 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
           {/* Performance & DOM Metrics Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
-              { label: 'TTFB Latency', value: `${scan.metrics?.ttfbMs ?? 'N/A'} ms` },
+              { label: 'TTFB / Warm TTFB', value: `${scan.metrics?.ttfbMs ?? 'N/A'} / ${scan.metrics?.timingBreakdown?.warmTtfbMs ?? scan.metrics?.ttfbMs ?? 'N/A'} ms` },
               { label: 'Total Response Time', value: `${scan.metrics?.totalResponseTimeMs ?? 'N/A'} ms` },
               { label: 'HTTP Status', value: `${scan.metrics?.statusCode ?? 'N/A'}` },
               { label: 'HTML Payload', value: scan.metrics?.htmlSizeBytes ? `${(scan.metrics.htmlSizeBytes / 1024).toFixed(1)} KB` : 'N/A' },
@@ -455,7 +530,6 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
             ))}
           </div>
 
-          {/* Severity Distribution Chart (From Real Findings) */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <section className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-6 space-y-4">
               <h3 className="text-base font-bold text-[#151515] dark:text-white">
@@ -517,10 +591,10 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
                   </span>
                 </div>
                 <div className="flex justify-between gap-4 py-1.5 border-b border-[#EFECE4] dark:border-[#1B1B1B]">
-                  <span className="text-[#777267] dark:text-[#929292]">Email DNS (SPF / DMARC)</span>
+                  <span className="text-[#777267] dark:text-[#929292]">Email &amp; CAA DNS</span>
                   <span className="font-mono text-[#151515] dark:text-white text-right">
-                    SPF: {scan.metrics?.dns?.hasSpf ? 'Observed' : 'Not observed'} · DMARC:{' '}
-                    {scan.metrics?.dns?.hasDmarc ? 'Observed' : 'Not observed'}
+                    SPF: {scan.metrics?.dns?.hasSpf ? 'Yes' : 'No'} · DMARC: {scan.metrics?.dns?.hasDmarc ? 'Yes' : 'No'} · CAA:{' '}
+                    {(scan.metrics?.dns?.caaRecords?.length ?? 0) > 0 ? 'Yes' : 'No'}
                   </span>
                 </div>
                 <div className="flex justify-between gap-4 py-1.5">
@@ -537,7 +611,7 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
         </div>
       )}
 
-      {/* TAB 4: Gemini AI Explanation */}
+      {/* TAB 4: Gemini AI Explanation & Interactive Q&A */}
       {activeTab === 'ai' && (
         <section className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-6 space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E7E0D3] dark:border-[#1E1E1E] pb-4">
@@ -545,7 +619,7 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-[#008C55] dark:text-[#00E69A]" />
                 <h3 className="text-base font-bold text-[#151515] dark:text-white">
-                  AI-Generated Findings Brief (Optional)
+                  AI-Generated Findings Brief &amp; Grounded Q&amp;A
                 </h3>
               </div>
               <p className="text-xs text-[#777267] dark:text-[#929292]">
@@ -591,9 +665,41 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
               </div>
             </div>
           ) : (
-            <div className="text-center py-8 text-sm text-[#777267] dark:text-[#929292]">
+            <div className="text-center py-6 text-sm text-[#777267] dark:text-[#929292]">
               Select an audience and click <strong>Generate AI Brief</strong> to synthesize prioritized remediation steps from the verified findings above.
             </div>
+          )}
+
+          {/* Grounded Q&A Box */}
+          {onAskAiQuestion && (
+            <form onSubmit={handleAskSubmit} className="pt-4 border-t border-[#E7E0D3] dark:border-[#1E1E1E] space-y-3">
+              <label htmlFor="ai-ask-input" className="block text-xs font-semibold text-[#151515] dark:text-white">
+                Ask AI Analyst about this specific scan
+              </label>
+              <div className="flex gap-2">
+                <input
+                  id="ai-ask-input"
+                  type="text"
+                  value={askInput}
+                  onChange={(e) => setAskInput(e.target.value)}
+                  placeholder="e.g. How do I configure the missing Content-Security-Policy header cleanly?"
+                  className="flex-1 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm border border-[#E7E0D3] dark:border-[#252525] bg-[#FAF9F5] dark:bg-[#101010] text-[#151515] dark:text-white"
+                />
+                <button
+                  type="submit"
+                  disabled={isAskingAi || askInput.trim().length < 3}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold bg-[#151515] text-white dark:bg-white dark:text-[#050505] disabled:opacity-50 cursor-pointer"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  {isAskingAi ? 'Thinking...' : 'Ask'}
+                </button>
+              </div>
+              {askAnswer && (
+                <div className="rounded-xl border border-[#E7E0D3] dark:border-[#222] bg-[#FAF9F5] dark:bg-[#101010] p-4 text-sm text-[#151515] dark:text-[#E5E5E5] whitespace-pre-wrap">
+                  {askAnswer}
+                </div>
+              )}
+            </form>
           )}
         </section>
       )}

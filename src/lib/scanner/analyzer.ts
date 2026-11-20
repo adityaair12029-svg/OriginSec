@@ -1,7 +1,9 @@
+import crypto from 'node:crypto';
 import * as cheerio from 'cheerio';
 import type {
   CategoryScores,
   DnsSignals,
+  ExtendedFrontendMetrics,
   FindingCategory,
   FindingsCount,
   LighthouseMetrics,
@@ -37,6 +39,7 @@ export interface FrontendAnalysisInput {
   html: string;
   htmlSizeBytes: number;
   ttfbMs: number;
+  warmTtfbMs?: number;
   totalResponseTimeMs: number;
   statusCode: number;
   redirectCount: number;
@@ -44,6 +47,9 @@ export interface FrontendAnalysisInput {
   brokenInternalLinks: Array<{ url: string; status: number | string }>;
   brokenImages: Array<{ url: string; status: number | string }>;
   lighthouse: LighthouseMetrics;
+  hasRobotsTxt?: boolean;
+  hasSitemapXml?: boolean;
+  hasSecurityTxt?: boolean;
 }
 
 function makeFinding(
@@ -99,6 +105,15 @@ export function redactCookieHeader(rawCookie: string): {
   };
 }
 
+export function computePostureFingerprint(findings: ScanFinding[], scores: CategoryScores): string {
+  const canonical = findings
+    .map((f) => `${f.category}|${f.ruleId || f.title}|${f.severity}|${f.status}|${f.observedValue}`)
+    .sort()
+    .join('\n');
+  const payload = `${scores.security ?? 'n'}|${scores.frontend ?? 'n'}|${scores.backend ?? 'n'}|${scores.engagement ?? 'n'}\n${canonical}`;
+  return crypto.createHash('sha256').update(payload).digest('hex').slice(0, 16);
+}
+
 export function analyzeAllCategories(
   secInput: SecurityAnalysisInput,
   feInput: FrontendAnalysisInput,
@@ -107,6 +122,7 @@ export function analyzeAllCategories(
   findings: ScanFinding[];
   scores: CategoryScores;
   findingsCount: FindingsCount;
+  postureFingerprint: string;
   domStats: {
     domNodeCount: number;
     scriptCount: number;
@@ -117,6 +133,7 @@ export function analyzeAllCategories(
     imagesWithoutDimensions: number;
     linkCount: number;
     headingCount: { h1: number; h2: number; h3: number };
+    frontendDetails: ExtendedFrontendMetrics;
   };
 } {
   const findings: ScanFinding[] = [];
@@ -128,6 +145,13 @@ export function analyzeAllCategories(
   const h = secInput.headers;
   const getHeader = (name: string) => h[name.toLowerCase()];
 
+  // Deterministic sorted DNS arrays
+  const sortedA = [...(secInput.dns.aRecords || [])].sort();
+  const sortedAAAA = [...(secInput.dns.aaaaRecords || [])].sort();
+  const sortedCaa = [...(secInput.dns.caaRecords || [])].sort();
+  const sortedMixed = [...(secInput.mixedContentUrls || [])].sort();
+  const sortedBrokenLinks = [...(feInput.brokenInternalLinks || [])].sort((a, b) => a.url.localeCompare(b.url));
+
   // =========================================================================
   // 1. CYBERSECURITY & HARDENING
   // =========================================================================
@@ -135,6 +159,9 @@ export function analyzeAllCategories(
   // 1a. HTTPS & Redirect Check
   if (!secInput.isHttps) {
     push({
+      ruleId: 'SEC_HTTPS_ACTIVE',
+      subCategory: 'tls',
+      confidence: 'verified_direct',
       category: 'security',
       title: 'Site Served Without HTTPS Encryption',
       severity: 'critical',
@@ -151,6 +178,9 @@ export function analyzeAllCategories(
     });
   } else {
     push({
+      ruleId: 'SEC_HTTPS_ACTIVE',
+      subCategory: 'tls',
+      confidence: 'verified_direct',
       category: 'security',
       title: 'HTTPS Transport Active',
       severity: 'passed',
@@ -168,14 +198,18 @@ export function analyzeAllCategories(
   }
 
   if (secInput.httpRedirectsToHttps === false) {
+    const host = new URL(secInput.finalUrl).hostname;
     push({
+      ruleId: 'SEC_HTTP_REDIRECT',
+      subCategory: 'tls',
+      confidence: 'verified_direct',
       category: 'security',
       title: 'HTTP Does Not Redirect to HTTPS',
       severity: 'high',
       priorityGroup: 'fix_immediately',
-      description: 'Probing the plain HTTP version of the domain did not return a redirect to HTTPS.',
-      evidence: `HTTP probe to http://${new URL(secInput.finalUrl).hostname} did not redirect to https://.`,
-      affectedUrl: `http://${new URL(secInput.finalUrl).hostname}`,
+      description: 'Probing the plain HTTP version of the domain responded without redirecting to HTTPS.',
+      evidence: `HTTP probe to http://${host} did not return a redirect to https://.`,
+      affectedUrl: `http://${host}`,
       observedValue: 'No HTTPS redirect observed',
       impact: 'Users typing the bare domain or following http:// links may communicate over unencrypted connections.',
       recommendation: 'Configure a permanent 301 or 308 redirect from HTTP (port 80) to HTTPS (port 443).',
@@ -183,12 +217,35 @@ export function analyzeAllCategories(
       verification: 'Run curl -I http://yourdomain.com and confirm Location: https://... with 301/308.',
       status: 'open',
     });
+  } else if (secInput.httpRedirectsToHttps === true) {
+    const host = new URL(secInput.finalUrl).hostname;
+    push({
+      ruleId: 'SEC_HTTP_REDIRECT',
+      subCategory: 'tls',
+      confidence: 'verified_direct',
+      category: 'security',
+      title: 'HTTP Redirects to HTTPS',
+      severity: 'passed',
+      priorityGroup: 'best_practice',
+      description: 'Requests to plain HTTP (port 80) redirect cleanly to encrypted HTTPS.',
+      evidence: `http://${host} returned an HTTPS redirect.`,
+      affectedUrl: `http://${host}`,
+      observedValue: 'Redirects to https://',
+      impact: 'Protects visitors entering bare domain names over plain HTTP.',
+      recommendation: 'Keep permanent 301/308 HTTPS redirects enabled.',
+      remediation: 'No action required.',
+      verification: 'Verified via port 80 redirect probe.',
+      status: 'passed',
+    });
   }
 
   // 1b. TLS Certificate Analysis
   if (secInput.isHttps) {
     if (!secInput.tls.available) {
       push({
+        ruleId: 'SEC_TLS_CERT',
+        subCategory: 'tls',
+        confidence: 'not_assessed',
         category: 'security',
         title: 'TLS Handshake Inspection Unavailable',
         severity: 'informational',
@@ -206,6 +263,9 @@ export function analyzeAllCategories(
     } else {
       if (!secInput.tls.authorized || secInput.tls.hostnameMatch === false) {
         push({
+          ruleId: 'SEC_TLS_CERT',
+          subCategory: 'tls',
+          confidence: 'verified_direct',
           category: 'security',
           title: 'TLS Certificate Validation Failure',
           severity: 'critical',
@@ -222,6 +282,9 @@ export function analyzeAllCategories(
         });
       } else if (secInput.tls.daysRemaining !== null && secInput.tls.daysRemaining <= 14) {
         push({
+          ruleId: 'SEC_TLS_CERT',
+          subCategory: 'tls',
+          confidence: 'verified_direct',
           category: 'security',
           title: 'TLS Certificate Expiring Soon',
           severity: secInput.tls.daysRemaining <= 0 ? 'critical' : 'high',
@@ -238,14 +301,17 @@ export function analyzeAllCategories(
         });
       } else {
         push({
+          ruleId: 'SEC_TLS_CERT',
+          subCategory: 'tls',
+          confidence: 'verified_direct',
           category: 'security',
           title: 'Valid TLS Certificate & Protocol',
           severity: 'passed',
           priorityGroup: 'best_practice',
           description: `TLS handshake succeeded with ${secInput.tls.protocol || 'TLS'} and a valid certificate issued by ${secInput.tls.issuer || 'trusted CA'}.`,
-          evidence: `Protocol: ${secInput.tls.protocol}, Expires: ${secInput.tls.validTo} (${secInput.tls.daysRemaining} days remaining)`,
+          evidence: `Protocol: ${secInput.tls.protocol}, Valid To: ${secInput.tls.validTo || 'N/A'}`,
           affectedUrl: secInput.finalUrl,
-          observedValue: `${secInput.tls.protocol || 'TLS'} · ${secInput.tls.daysRemaining ?? '?'}d remaining`,
+          observedValue: `${secInput.tls.protocol || 'TLS'} · Valid`,
           impact: 'Visitors receive verified transport encryption.',
           recommendation: 'Keep automated renewal active.',
           remediation: 'No action required.',
@@ -257,16 +323,19 @@ export function analyzeAllCategories(
   }
 
   // 1c. Mixed Content
-  if (secInput.isHttps && secInput.mixedContentUrls.length > 0) {
+  if (secInput.isHttps && sortedMixed.length > 0) {
     push({
+      ruleId: 'SEC_MIXED_CONTENT',
+      subCategory: 'headers',
+      confidence: 'static_html',
       category: 'security',
       title: 'Mixed Content References Detected',
       severity: 'medium',
       priorityGroup: 'fix_soon',
-      description: `Found ${secInput.mixedContentUrls.length} insecure http:// asset or script reference(s) inside an HTTPS page.`,
-      evidence: `Examples: ${secInput.mixedContentUrls.slice(0, 3).join(', ')}`,
+      description: `Found ${sortedMixed.length} insecure http:// asset or script reference(s) inside an HTTPS page.`,
+      evidence: `Examples: ${sortedMixed.slice(0, 3).join(', ')}`,
       affectedUrl: secInput.finalUrl,
-      observedValue: `${secInput.mixedContentUrls.length} http:// asset URLs`,
+      observedValue: `${sortedMixed.length} http:// asset URLs`,
       impact: 'Browsers block active mixed content (scripts/styles) and warn on passive mixed content, degrading security and functionality.',
       recommendation: 'Update all subresource URLs to https:// or protocol-neutral paths.',
       remediation: 'Replace http:// asset URLs in HTML templates and optionally add upgrade-insecure-requests to CSP.',
@@ -280,6 +349,9 @@ export function analyzeAllCategories(
   if (secInput.isHttps) {
     if (!hsts) {
       push({
+        ruleId: 'SEC_HSTS',
+        subCategory: 'headers',
+        confidence: 'verified_direct',
         category: 'security',
         title: 'Missing Strict-Transport-Security (HSTS) Header',
         severity: 'medium',
@@ -296,6 +368,9 @@ export function analyzeAllCategories(
       });
     } else {
       push({
+        ruleId: 'SEC_HSTS',
+        subCategory: 'headers',
+        confidence: 'verified_direct',
         category: 'security',
         title: 'Strict-Transport-Security (HSTS) Configured',
         severity: 'passed',
@@ -316,6 +391,9 @@ export function analyzeAllCategories(
   const csp = getHeader('content-security-policy');
   if (!csp) {
     push({
+      ruleId: 'SEC_CSP',
+      subCategory: 'headers',
+      confidence: 'verified_direct',
       category: 'security',
       title: 'Missing Content-Security-Policy (CSP)',
       severity: 'high',
@@ -332,6 +410,9 @@ export function analyzeAllCategories(
     });
   } else if (csp.includes("'unsafe-inline'") || csp.includes('*')) {
     push({
+      ruleId: 'SEC_CSP',
+      subCategory: 'headers',
+      confidence: 'verified_direct',
       category: 'security',
       title: 'Permissive Content-Security-Policy Directives',
       severity: 'medium',
@@ -339,7 +420,7 @@ export function analyzeAllCategories(
       description: 'Content-Security-Policy is present, but includes permissive directives such as unsafe-inline or wildcard origins.',
       evidence: `Content-Security-Policy: ${csp.slice(0, 260)}`,
       affectedUrl: secInput.finalUrl,
-      observedValue: csp.slice(0, 120),
+      observedValue: 'Permissive CSP',
       impact: 'Allowing unsafe-inline or broad wildcards weakens protection against inline script injection.',
       recommendation: 'Replace unsafe-inline scripts with nonces or cryptographic hashes and scope allowlisted domains.',
       remediation: "Use script-src 'self' 'nonce-<random>' and avoid wildcard script sources.",
@@ -348,6 +429,9 @@ export function analyzeAllCategories(
     });
   } else {
     push({
+      ruleId: 'SEC_CSP',
+      subCategory: 'headers',
+      confidence: 'verified_direct',
       category: 'security',
       title: 'Content-Security-Policy (CSP) Configured',
       severity: 'passed',
@@ -355,7 +439,7 @@ export function analyzeAllCategories(
       description: 'A Content-Security-Policy header is present without broad unsafe-inline or wildcard script rules.',
       evidence: `Content-Security-Policy: ${csp.slice(0, 260)}`,
       affectedUrl: secInput.finalUrl,
-      observedValue: csp.slice(0, 120),
+      observedValue: 'Hardened CSP',
       impact: 'Helps mitigate XSS and unauthorized resource execution.',
       recommendation: 'Review CSP violation reports periodically when adding third-party integrations.',
       remediation: 'No action required.',
@@ -368,6 +452,9 @@ export function analyzeAllCategories(
   const hasFrameAncestors = Boolean(csp && csp.toLowerCase().includes('frame-ancestors'));
   if (!xfo && !hasFrameAncestors) {
     push({
+      ruleId: 'SEC_CLICKJACKING',
+      subCategory: 'headers',
+      confidence: 'verified_direct',
       category: 'security',
       title: 'Missing Clickjacking Protection (X-Frame-Options / frame-ancestors)',
       severity: 'high',
@@ -384,6 +471,9 @@ export function analyzeAllCategories(
     });
   } else {
     push({
+      ruleId: 'SEC_CLICKJACKING',
+      subCategory: 'headers',
+      confidence: 'verified_direct',
       category: 'security',
       title: 'Clickjacking Protection Active',
       severity: 'passed',
@@ -403,6 +493,9 @@ export function analyzeAllCategories(
   const xcto = getHeader('x-content-type-options');
   if (!xcto || xcto.toLowerCase() !== 'nosniff') {
     push({
+      ruleId: 'SEC_XCTO',
+      subCategory: 'headers',
+      confidence: 'verified_direct',
       category: 'security',
       title: 'Missing X-Content-Type-Options: nosniff',
       severity: 'medium',
@@ -419,6 +512,9 @@ export function analyzeAllCategories(
     });
   } else {
     push({
+      ruleId: 'SEC_XCTO',
+      subCategory: 'headers',
+      confidence: 'verified_direct',
       category: 'security',
       title: 'X-Content-Type-Options Enforced',
       severity: 'passed',
@@ -438,6 +534,9 @@ export function analyzeAllCategories(
   const refPolicy = getHeader('referrer-policy');
   if (!refPolicy) {
     push({
+      ruleId: 'SEC_REFERRER',
+      subCategory: 'headers',
+      confidence: 'verified_direct',
       category: 'security',
       title: 'Missing Referrer-Policy Header',
       severity: 'medium',
@@ -454,6 +553,9 @@ export function analyzeAllCategories(
     });
   } else {
     push({
+      ruleId: 'SEC_REFERRER',
+      subCategory: 'headers',
+      confidence: 'verified_direct',
       category: 'security',
       title: 'Referrer-Policy Configured',
       severity: 'passed',
@@ -473,6 +575,9 @@ export function analyzeAllCategories(
   const permPolicy = getHeader('permissions-policy') || getHeader('feature-policy');
   if (!permPolicy) {
     push({
+      ruleId: 'SEC_PERMISSIONS',
+      subCategory: 'headers',
+      confidence: 'verified_direct',
       category: 'security',
       title: 'Missing Permissions-Policy Header',
       severity: 'low',
@@ -494,6 +599,9 @@ export function analyzeAllCategories(
   const coep = getHeader('cross-origin-embedder-policy');
   if (!coop || !corp) {
     push({
+      ruleId: 'SEC_COOP_CORP',
+      subCategory: 'headers',
+      confidence: 'verified_direct',
       category: 'security',
       title: 'Cross-Origin Isolation Headers Incomplete',
       severity: 'low',
@@ -510,12 +618,19 @@ export function analyzeAllCategories(
     });
   }
 
-  // 1e. Cookie Security (Values Redacted)
+  // 1e. Cookie Security (Values Redacted & Sorted Deterministically)
   if (secInput.setCookieHeaders.length > 0) {
-    const parsedCookies = secInput.setCookieHeaders.map(redactCookieHeader);
-    const weakCookies = parsedCookies.filter((c) => !c.hasSecure || !c.hasHttpOnly || !c.sameSite);
+    const parsedCookies = secInput.setCookieHeaders
+      .map(redactCookieHeader)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    // Deduplicate by cookie name in case edge sends duplicate Set-Cookie headers
+    const uniqueCookies = Array.from(new Map(parsedCookies.map((c) => [c.name, c])).values());
+    const weakCookies = uniqueCookies.filter((c) => !c.hasSecure || !c.hasHttpOnly || !c.sameSite);
     if (weakCookies.length > 0) {
       push({
+        ruleId: 'SEC_COOKIES',
+        subCategory: 'headers',
+        confidence: 'verified_direct',
         category: 'security',
         title: 'Cookies Missing Hardened Security Flags',
         severity: 'medium',
@@ -532,14 +647,17 @@ export function analyzeAllCategories(
       });
     } else {
       push({
+        ruleId: 'SEC_COOKIES',
+        subCategory: 'headers',
+        confidence: 'verified_direct',
         category: 'security',
         title: 'Cookie Security Flags Configured',
         severity: 'passed',
         priorityGroup: 'best_practice',
-        description: `All ${parsedCookies.length} observed Set-Cookie header(s) include Secure, HttpOnly, and SameSite attributes.`,
-        evidence: parsedCookies.map((c) => c.sanitizedSummary).join(' | '),
+        description: `All ${uniqueCookies.length} observed Set-Cookie header(s) include Secure, HttpOnly, and SameSite attributes.`,
+        evidence: uniqueCookies.map((c) => c.sanitizedSummary).join(' | '),
         affectedUrl: secInput.finalUrl,
-        observedValue: `${parsedCookies.length} hardened cookie(s)`,
+        observedValue: `${uniqueCookies.length} hardened cookie(s)`,
         impact: 'Protects cookies against script access and cross-site request leakage.',
         recommendation: 'Keep security flags enforced on all authentication cookies.',
         remediation: 'No action required.',
@@ -561,6 +679,9 @@ export function analyzeAllCategories(
 
   if (exposedBanners.length > 0 && (poweredBy || aspNet || /\d+\.\d+/.test(serverHdr || ''))) {
     push({
+      ruleId: 'SEC_SERVER_BANNER',
+      subCategory: 'headers',
+      confidence: 'verified_direct',
       category: 'security',
       title: 'Server Version or Framework Banner Exposed',
       severity: 'low',
@@ -577,6 +698,9 @@ export function analyzeAllCategories(
     });
   } else if (serverHdr) {
     push({
+      ruleId: 'SEC_SERVER_BANNER',
+      subCategory: 'headers',
+      confidence: 'verified_direct',
       category: 'security',
       title: 'Infrastructure Server Banner Observed',
       severity: 'informational',
@@ -593,16 +717,19 @@ export function analyzeAllCategories(
     });
   }
 
-  // 1g. DNS Security Signals (SPF, DMARC, CAA)
+  // 1g. DNS Security Signals (SPF, DMARC, CAA - sorted for determinism)
   if (secInput.dns.resolved) {
     if (!secInput.dns.hasSpf || !secInput.dns.hasDmarc) {
       push({
+        ruleId: 'SEC_DNS_EMAIL',
+        subCategory: 'dns',
+        confidence: 'verified_direct',
         category: 'security',
         title: 'Email Authentication DNS Records Incomplete (SPF / DMARC)',
         severity: 'low',
         priorityGroup: 'best_practice',
         description: `DNS TXT inspection observed SPF=${secInput.dns.hasSpf ? 'present' : 'not observed'} and DMARC=${secInput.dns.hasDmarc ? 'present' : 'not observed'}. Note: DNS observations do not inspect private mail server signing (DKIM).`,
-        evidence: `A: ${secInput.dns.aRecords.join(', ') || 'none'} | MX: ${secInput.dns.mxRecords.length} | SPF: ${secInput.dns.hasSpf} | DMARC: ${secInput.dns.hasDmarc}`,
+        evidence: `A: ${sortedA.join(', ') || 'none'} | AAAA: ${sortedAAAA.join(', ') || 'none'} | SPF: ${secInput.dns.hasSpf} | DMARC: ${secInput.dns.hasDmarc}`,
         affectedUrl: secInput.finalUrl,
         observedValue: `SPF:${secInput.dns.hasSpf ? 'Yes' : 'No'} DMARC:${secInput.dns.hasDmarc ? 'Yes' : 'No'}`,
         impact: 'Missing SPF or DMARC policies make it easier for third parties to spoof emails appearing to come from your domain.',
@@ -613,12 +740,15 @@ export function analyzeAllCategories(
       });
     } else {
       push({
+        ruleId: 'SEC_DNS_EMAIL',
+        subCategory: 'dns',
+        confidence: 'verified_direct',
         category: 'security',
         title: 'DNS SPF & DMARC Records Observed',
         severity: 'passed',
         priorityGroup: 'best_practice',
         description: 'Both SPF and DMARC TXT records were observed in public DNS.',
-        evidence: `DMARC: ${secInput.dns.dmarcRecord || 'Present'} | CAA records: ${secInput.dns.caaRecords.length}`,
+        evidence: `DMARC: ${secInput.dns.dmarcRecord || 'Present'} | CAA records: ${sortedCaa.length}`,
         affectedUrl: secInput.finalUrl,
         observedValue: 'SPF + DMARC present',
         impact: 'Helps receiving mail providers verify domain email authenticity.',
@@ -628,17 +758,41 @@ export function analyzeAllCategories(
         status: 'passed',
       });
     }
+
+    if (sortedCaa.length === 0) {
+      push({
+        ruleId: 'SEC_DNS_CAA',
+        subCategory: 'dns',
+        confidence: 'verified_direct',
+        category: 'security',
+        title: 'No DNS CAA Certificate Authority Restriction Observed',
+        severity: 'informational',
+        priorityGroup: 'long_term',
+        description: 'No Certification Authority Authorization (CAA) DNS record was observed for this domain.',
+        evidence: 'DNS CAA lookup returned 0 records.',
+        affectedUrl: secInput.finalUrl,
+        observedValue: 'CAA absent',
+        impact: 'Without CAA records, any publicly trusted CA could theoretically issue certificates if domain validation is compromised.',
+        recommendation: 'Publish a CAA DNS record restricting certificate issuance to your chosen CA (e.g., letsencrypt.org or pki.goog).',
+        remediation: 'yourdomain.com. IN CAA 0 issue "letsencrypt.org"',
+        verification: 'Query DNS CAA records for your domain.',
+        status: 'open',
+      });
+    }
   }
 
-  // 1h. security.txt / robots.txt
+  // 1h. security.txt
   if (!secInput.hasSecurityTxt) {
     push({
+      ruleId: 'SEC_SECURITY_TXT',
+      subCategory: 'headers',
+      confidence: 'verified_direct',
       category: 'security',
       title: 'No /.well-known/security.txt Found',
       severity: 'informational',
       priorityGroup: 'best_practice',
       description: 'No public security.txt policy file was found at /.well-known/security.txt.',
-      evidence: 'GET /.well-known/security.txt did not return HTTP 200 text content.',
+      evidence: 'GET /.well-known/security.txt did not return HTTP 200 text content with a Contact field.',
       affectedUrl: `${new URL(secInput.finalUrl).origin}/.well-known/security.txt`,
       observedValue: 'Not found',
       impact: 'Security researchers lack a standardized vulnerability disclosure contact channel.',
@@ -650,7 +804,7 @@ export function analyzeAllCategories(
   }
 
   // =========================================================================
-  // 2. FRONT-END & UI/UX (Static HTML + Optional Lighthouse)
+  // 2. FRONT-END, ACCESSIBILITY (WCAG) & UI/UX
   // =========================================================================
   const $ = cheerio.load(feInput.html || '');
   const domNodeCount = $('*').length;
@@ -661,10 +815,12 @@ export function analyzeAllCategories(
   const imageCount = images.length;
   let imagesWithoutAlt = 0;
   let imagesWithoutDimensions = 0;
-  images.each((_, el) => {
+  let imagesWithoutLazyLoading = 0;
+  images.each((i, el) => {
     const alt = $(el).attr('alt');
     if (alt === undefined) imagesWithoutAlt++;
     if (!$(el).attr('width') || !$(el).attr('height')) imagesWithoutDimensions++;
+    if (i > 1 && !$(el).attr('loading')) imagesWithoutLazyLoading++;
   });
 
   const links = $('a');
@@ -676,9 +832,45 @@ export function analyzeAllCategories(
     if (!text && !aria) emptyLinks++;
   });
 
+  const buttons = $('button');
+  let buttonsWithoutText = 0;
+  buttons.each((_, el) => {
+    const text = $(el).text().trim();
+    const aria = $(el).attr('aria-label') || $(el).attr('title');
+    if (!text && !aria) buttonsWithoutText++;
+  });
+
+  const forms = $('form');
+  const formCount = forms.length;
+  const labelForIds = new Set<string>();
+  $('label[for]').each((_, el) => {
+    const forVal = $(el).attr('for')?.trim();
+    if (forVal) labelForIds.add(forVal);
+  });
+  let inputsWithoutLabel = 0;
+  $('input, select, textarea').each((_, el) => {
+    const tag = el.tagName?.toLowerCase();
+    const type = ($(el).attr('type') || 'text').toLowerCase();
+    if (tag === 'input' && ['hidden', 'submit', 'button', 'reset', 'image'].includes(type)) return;
+    const id = $(el).attr('id')?.trim();
+    const aria = $(el).attr('aria-label') || $(el).attr('aria-labelledby');
+    const wrappedByLabel = $(el).closest('label').length > 0;
+    const hasForLabel = Boolean(id && labelForIds.has(id));
+    if (!aria && !wrappedByLabel && !hasForLabel) inputsWithoutLabel++;
+  });
+
   const h1Count = $('h1').length;
   const h2Count = $('h2').length;
   const h3Count = $('h3').length;
+  let headingOrderIssues = 0;
+  let prevLevel = 0;
+  $('h1, h2, h3, h4, h5, h6').each((_, el) => {
+    const level = Number(el.tagName.slice(1));
+    if (prevLevel > 0 && level > prevLevel + 1) {
+      headingOrderIssues++;
+    }
+    prevLevel = level;
+  });
 
   const title = $('title').first().text().trim();
   const metaDesc = $('meta[name="description"]').attr('content')?.trim() || '';
@@ -686,10 +878,39 @@ export function analyzeAllCategories(
   const htmlLang = $('html').attr('lang')?.trim() || '';
   const canonical = $('link[rel="canonical"]').attr('href')?.trim() || '';
   const ogTitle = $('meta[property="og:title"]').attr('content')?.trim() || '';
+  const ogDesc = $('meta[property="og:description"]').attr('content')?.trim() || '';
+  const twitterCard = $('meta[name="twitter:card"]').attr('content')?.trim() || '';
+
+  const hasRobotsTxt = feInput.hasRobotsTxt ?? secInput.hasRobotsTxt;
+  const hasSitemapXml = feInput.hasSitemapXml ?? secInput.hasSitemapXml;
+  const hasSecurityTxt = feInput.hasSecurityTxt ?? secInput.hasSecurityTxt;
+
+  const frontendDetails: ExtendedFrontendMetrics = {
+    formCount,
+    inputsWithoutLabel,
+    buttonsWithoutText,
+    emptyLinks,
+    imagesWithoutLazyLoading,
+    headingOrderIssues,
+    hasCanonical: Boolean(canonical),
+    canonicalUrl: canonical || null,
+    hasMetaDescription: Boolean(metaDesc),
+    metaDescriptionLength: metaDesc.length,
+    hasOpenGraph: Boolean(ogTitle || ogDesc),
+    hasTwitterCard: Boolean(twitterCard),
+    hasRobotsTxt,
+    hasSitemapXml,
+    hasSecurityTxt,
+    htmlLang: htmlLang || null,
+    pageTitle: title || null,
+  };
 
   // Viewport meta
   if (!viewport) {
     push({
+      ruleId: 'FE_VIEWPORT',
+      subCategory: 'accessibility',
+      confidence: 'static_html',
       category: 'frontend',
       title: 'Missing Viewport Meta Tag',
       severity: 'high',
@@ -706,6 +927,9 @@ export function analyzeAllCategories(
     });
   } else {
     push({
+      ruleId: 'FE_VIEWPORT',
+      subCategory: 'accessibility',
+      confidence: 'static_html',
       category: 'frontend',
       title: 'Viewport Meta Tag Present',
       severity: 'passed',
@@ -722,9 +946,12 @@ export function analyzeAllCategories(
     });
   }
 
-  // Title & Meta Description
+  // Title & Meta Description (SEO)
   if (!title || title.length < 5) {
     push({
+      ruleId: 'SEO_TITLE',
+      subCategory: 'seo',
+      confidence: 'static_html',
       category: 'frontend',
       title: 'Missing or Too Short Page Title',
       severity: 'medium',
@@ -743,6 +970,9 @@ export function analyzeAllCategories(
 
   if (!metaDesc) {
     push({
+      ruleId: 'SEO_META_DESC',
+      subCategory: 'seo',
+      confidence: 'static_html',
       category: 'frontend',
       title: 'Missing Meta Description',
       severity: 'low',
@@ -759,13 +989,17 @@ export function analyzeAllCategories(
     });
   }
 
+  // Accessibility checks
   if (!htmlLang) {
     push({
+      ruleId: 'A11Y_HTML_LANG',
+      subCategory: 'accessibility',
+      confidence: 'static_html',
       category: 'frontend',
       title: 'Missing HTML lang Attribute',
       severity: 'medium',
       priorityGroup: 'fix_soon',
-      description: 'The root <html> element does not specify a lang attribute.',
+      description: 'The root <html> element does not specify a lang attribute (WCAG 3.1.1).',
       evidence: '<html> tag has no lang attribute in static HTML.',
       affectedUrl: feInput.finalUrl,
       observedValue: 'Missing lang',
@@ -780,6 +1014,9 @@ export function analyzeAllCategories(
   // Render-blocking & DOM Complexity (Static HTML measurements)
   if (renderBlockingScripts > 0 || stylesheetCount > 4) {
     push({
+      ruleId: 'PERF_RENDER_BLOCKING',
+      subCategory: 'performance',
+      confidence: 'static_html',
       category: 'frontend',
       title: 'Render-Blocking Resources in Head',
       severity: 'medium',
@@ -798,6 +1035,9 @@ export function analyzeAllCategories(
 
   if (domNodeCount > 1500) {
     push({
+      ruleId: 'PERF_DOM_SIZE',
+      subCategory: 'performance',
+      confidence: 'static_html',
       category: 'frontend',
       title: 'High Static DOM Node Count',
       severity: 'medium',
@@ -814,6 +1054,9 @@ export function analyzeAllCategories(
     });
   } else if (domNodeCount > 0) {
     push({
+      ruleId: 'PERF_DOM_SIZE',
+      subCategory: 'performance',
+      confidence: 'static_html',
       category: 'frontend',
       title: 'Lightweight Static DOM Structure',
       severity: 'passed',
@@ -830,14 +1073,17 @@ export function analyzeAllCategories(
     });
   }
 
-  // Accessibility: Image alt, empty links, form labels, landmarks
+  // Accessibility: Image alt, empty links, unlabeled buttons, form labels, heading jumps
   if (imagesWithoutAlt > 0) {
     push({
+      ruleId: 'A11Y_IMG_ALT',
+      subCategory: 'accessibility',
+      confidence: 'static_html',
       category: 'frontend',
       title: 'Images Missing Alt Attributes',
       severity: 'medium',
       priorityGroup: 'fix_soon',
-      description: `${imagesWithoutAlt} of ${imageCount} <img> element(s) lack an alt attribute.`,
+      description: `${imagesWithoutAlt} of ${imageCount} <img> element(s) lack an alt attribute (WCAG 1.1.1).`,
       evidence: `${imagesWithoutAlt} missing alt; ${imagesWithoutDimensions} missing explicit width/height.`,
       affectedUrl: feInput.finalUrl,
       observedValue: `${imagesWithoutAlt}/${imageCount} missing alt`,
@@ -851,11 +1097,14 @@ export function analyzeAllCategories(
 
   if (emptyLinks > 0) {
     push({
+      ruleId: 'A11Y_EMPTY_LINKS',
+      subCategory: 'accessibility',
+      confidence: 'static_html',
       category: 'frontend',
       title: 'Links Without Accessible Text',
       severity: 'medium',
       priorityGroup: 'fix_soon',
-      description: `${emptyLinks} anchor <a> element(s) contain no visible text and no aria-label.`,
+      description: `${emptyLinks} anchor <a> element(s) contain no visible text and no aria-label (WCAG 2.4.4).`,
       evidence: `Empty links found: ${emptyLinks} of ${linkCount} total links`,
       affectedUrl: feInput.finalUrl,
       observedValue: `${emptyLinks} unlabeled links`,
@@ -867,17 +1116,83 @@ export function analyzeAllCategories(
     });
   }
 
-  // Broken links / images observed during bounded crawl
-  if (feInput.brokenInternalLinks.length > 0) {
+  if (buttonsWithoutText > 0) {
     push({
+      ruleId: 'A11Y_BUTTON_TEXT',
+      subCategory: 'accessibility',
+      confidence: 'static_html',
+      category: 'frontend',
+      title: 'Buttons Missing Accessible Labels',
+      severity: 'medium',
+      priorityGroup: 'fix_soon',
+      description: `${buttonsWithoutText} <button> element(s) lack visible text or an aria-label attribute (WCAG 4.1.2).`,
+      evidence: `Buttons without accessible name: ${buttonsWithoutText} of ${buttons.length} total <button> tags`,
+      affectedUrl: feInput.finalUrl,
+      observedValue: `${buttonsWithoutText} unlabeled button(s)`,
+      impact: 'Screen readers announce icon-only buttons ambiguously as "button" with no purpose.',
+      recommendation: 'Add an explicit aria-label or descriptive text inside every interactive <button>.',
+      remediation: '<button type="button" aria-label="Close navigation"><svg ... /></button>',
+      verification: 'Inspect accessible names in browser Accessibility tree.',
+      status: 'open',
+    });
+  }
+
+  if (inputsWithoutLabel > 0) {
+    push({
+      ruleId: 'A11Y_FORM_LABELS',
+      subCategory: 'accessibility',
+      confidence: 'static_html',
+      category: 'frontend',
+      title: 'Form Controls Missing Associated Labels',
+      severity: 'medium',
+      priorityGroup: 'fix_soon',
+      description: `${inputsWithoutLabel} form field(s) lack a matching <label for="...">, wrapping <label>, or aria-label (WCAG 1.3.1 / 3.3.2).`,
+      evidence: `Unlabeled form inputs: ${inputsWithoutLabel} across ${formCount} form(s)`,
+      affectedUrl: feInput.finalUrl,
+      observedValue: `${inputsWithoutLabel} unlabeled field(s)`,
+      impact: 'Assistive technology users cannot identify the expected input for unlabeled fields.',
+      recommendation: 'Associate every <input>, <select>, and <textarea> with a visible <label for="..."> or aria-label.',
+      remediation: '<label for="email">Email</label><input id="email" type="email" />',
+      verification: 'Verify accessible labels in browser DevTools.',
+      status: 'open',
+    });
+  }
+
+  if (headingOrderIssues > 0) {
+    push({
+      ruleId: 'A11Y_HEADING_ORDER',
+      subCategory: 'accessibility',
+      confidence: 'static_html',
+      category: 'frontend',
+      title: 'Skipped Heading Hierarchy Levels Detected',
+      severity: 'low',
+      priorityGroup: 'best_practice',
+      description: `Detected ${headingOrderIssues} heading level jump(s) (e.g., jumping from <h1> directly to <h3> without an intervening <h2>).`,
+      evidence: `Heading hierarchy skips: ${headingOrderIssues} (H1: ${h1Count}, H2: ${h2Count}, H3: ${h3Count})`,
+      affectedUrl: feInput.finalUrl,
+      observedValue: `${headingOrderIssues} hierarchy skip(s)`,
+      impact: 'Screen reader landmark navigation relies on sequential heading tiers.',
+      recommendation: 'Maintain sequential heading order (h1 -> h2 -> h3) and style visual sizes via CSS classes.',
+      remediation: 'Replace skipped heading levels with sequential tags while retaining typography styles.',
+      verification: 'Check document outline hierarchy.',
+      status: 'open',
+    });
+  }
+
+  // Broken links / images observed during bounded crawl
+  if (sortedBrokenLinks.length > 0) {
+    push({
+      ruleId: 'FE_BROKEN_LINKS',
+      subCategory: 'content',
+      confidence: 'verified_direct',
       category: 'frontend',
       title: 'Broken Internal Links Observed',
       severity: 'high',
       priorityGroup: 'fix_immediately',
-      description: `${feInput.brokenInternalLinks.length} sampled internal link(s) returned 4xx/5xx or connection errors.`,
-      evidence: feInput.brokenInternalLinks.slice(0, 4).map((b) => `${b.url} (${b.status})`).join('; '),
-      affectedUrl: feInput.brokenInternalLinks[0].url,
-      observedValue: `${feInput.brokenInternalLinks.length} broken link(s)`,
+      description: `${sortedBrokenLinks.length} sampled internal link(s) returned 4xx/5xx or connection errors.`,
+      evidence: sortedBrokenLinks.slice(0, 4).map((b) => `${b.url} (${b.status})`).join('; '),
+      affectedUrl: sortedBrokenLinks[0].url,
+      observedValue: `${sortedBrokenLinks.length} broken link(s)`,
       impact: 'Broken navigation links frustrate visitors and harm search crawlability.',
       recommendation: 'Update or redirect broken internal URLs to valid destinations.',
       remediation: 'Fix href targets or configure 301 redirects for moved pages.',
@@ -890,6 +1205,9 @@ export function analyzeAllCategories(
   if (feInput.lighthouse.available && feInput.lighthouse.performanceScore !== undefined) {
     const perf = feInput.lighthouse.performanceScore;
     push({
+      ruleId: 'PERF_PAGESPEED',
+      subCategory: 'performance',
+      confidence: 'verified_direct',
       category: 'frontend',
       title: 'Google PageSpeed Insights Lighthouse Measurements',
       severity: perf < 50 ? 'high' : perf < 80 ? 'medium' : 'passed',
@@ -906,35 +1224,63 @@ export function analyzeAllCategories(
     });
   }
 
+  // Transparent WCAG manual review notice (non-penalizing informational guidance)
+  push({
+    ruleId: 'A11Y_MANUAL_NOTE',
+    subCategory: 'accessibility',
+    confidence: 'not_assessed',
+    manualReviewRequired: true,
+    category: 'frontend',
+    title: 'Manual Accessibility Review Recommended (Contrast & Keyboard Traps)',
+    severity: 'informational',
+    priorityGroup: 'best_practice',
+    description: 'Static HTML inspection checks alt attributes, form labels, landmarks, button labels, and heading order, but computed visual color contrast, focus visibility, and full keyboard trap behavior require live browser inspection.',
+    evidence: 'Static HTML parser does not compute CSS visual contrast ratios or JavaScript keyboard event loops.',
+    affectedUrl: feInput.finalUrl,
+    observedValue: 'Manual review required',
+    impact: 'Verifying contrast >= 4.5:1 and visible keyboard focus prevents WCAG 2.1 AA barriers.',
+    recommendation: 'Test interactive tabs, modals, and keyboard navigation using Chrome DevTools or axe DevTools.',
+    remediation: 'Ensure focus-visible outlines and WCAG AA contrast ratios across light and dark modes.',
+    verification: 'Complete keyboard-only Tab traversal audit.',
+    status: 'not_assessed',
+  });
+
   // =========================================================================
-  // 3. BACK-END & ARCHITECTURE
+  // 3. BACK-END & ARCHITECTURE (Jitter-Resistant Deterministic Latency)
   // =========================================================================
-  if (feInput.ttfbMs > 1200) {
+  const effectiveTtfb = feInput.warmTtfbMs ?? feInput.ttfbMs;
+  if (effectiveTtfb > 1800) {
     push({
+      ruleId: 'BE_TTFB',
+      subCategory: 'performance',
+      confidence: 'verified_direct',
       category: 'backend',
       title: 'High Time-to-First-Byte (TTFB)',
       severity: 'high',
       priorityGroup: 'fix_immediately',
-      description: `Measured TTFB is ${feInput.ttfbMs} ms, exceeding the 600 ms target for responsive origin delivery.`,
-      evidence: `TTFB: ${feInput.ttfbMs} ms | Total response time: ${feInput.totalResponseTimeMs} ms | Status: ${feInput.statusCode}`,
+      description: `Measured representative TTFB is ${effectiveTtfb} ms (initial: ${feInput.ttfbMs} ms), exceeding 1,800 ms for responsive origin delivery.`,
+      evidence: `Representative TTFB: ${effectiveTtfb} ms | Total response time: ${feInput.totalResponseTimeMs} ms | Status: ${feInput.statusCode}`,
       affectedUrl: feInput.finalUrl,
-      observedValue: `${feInput.ttfbMs} ms`,
+      observedValue: '> 1800 ms sustained',
       impact: 'Slow initial server response delays every downstream asset download and page render.',
       recommendation: 'Profile server-side database queries, enable edge caching/CDN, and avoid cold-start heavy initialization.',
       remediation: 'Add CDN edge caching headers (Cache-Control: public, s-maxage=300, stale-while-revalidate=60) for cacheable pages.',
       verification: 'Measure TTFB across multiple requests and verify < 500 ms.',
       status: 'open',
     });
-  } else if (feInput.ttfbMs > 600) {
+  } else if (effectiveTtfb > 1000) {
     push({
+      ruleId: 'BE_TTFB',
+      subCategory: 'performance',
+      confidence: 'verified_direct',
       category: 'backend',
       title: 'Moderate Time-to-First-Byte (TTFB)',
       severity: 'medium',
       priorityGroup: 'optimization',
-      description: `Measured TTFB is ${feInput.ttfbMs} ms. Sub-500 ms response times are recommended.`,
-      evidence: `TTFB: ${feInput.ttfbMs} ms | Total response time: ${feInput.totalResponseTimeMs} ms`,
+      description: `Measured representative TTFB is ${effectiveTtfb} ms (initial: ${feInput.ttfbMs} ms). Sub-500 ms response times are recommended.`,
+      evidence: `Representative TTFB: ${effectiveTtfb} ms | Total response time: ${feInput.totalResponseTimeMs} ms`,
       affectedUrl: feInput.finalUrl,
-      observedValue: `${feInput.ttfbMs} ms`,
+      observedValue: '1000–1800 ms',
       impact: 'Elevated latency increases perceived wait time on slower networks.',
       recommendation: 'Cache expensive server computations or distribute static pages via a global edge network.',
       remediation: 'Configure edge caching or optimize backend route latency.',
@@ -943,14 +1289,17 @@ export function analyzeAllCategories(
     });
   } else {
     push({
+      ruleId: 'BE_TTFB',
+      subCategory: 'performance',
+      confidence: 'verified_direct',
       category: 'backend',
-      title: 'Fast Server Response Time (TTFB)',
+      title: 'Responsive Server Time-to-First-Byte (TTFB)',
       severity: 'passed',
       priorityGroup: 'best_practice',
-      description: `Origin responded in ${feInput.ttfbMs} ms TTFB (${feInput.totalResponseTimeMs} ms total).`,
-      evidence: `TTFB: ${feInput.ttfbMs} ms | Status: ${feInput.statusCode}`,
+      description: `Origin responded within responsive latency bounds (representative TTFB ${effectiveTtfb} ms; HTTP ${feInput.statusCode}).`,
+      evidence: `Representative TTFB: ${effectiveTtfb} ms | Initial TTFB: ${feInput.ttfbMs} ms | Status: ${feInput.statusCode}`,
       affectedUrl: feInput.finalUrl,
-      observedValue: `${feInput.ttfbMs} ms`,
+      observedValue: 'Healthy (< 1000 ms)',
       impact: 'Low origin latency supports fast First Contentful Paint.',
       recommendation: 'Maintain edge caching and response time monitoring.',
       remediation: 'No action required.',
@@ -962,6 +1311,9 @@ export function analyzeAllCategories(
   const cacheControl = getHeader('cache-control');
   if (!cacheControl) {
     push({
+      ruleId: 'BE_CACHE_CONTROL',
+      subCategory: 'headers',
+      confidence: 'verified_direct',
       category: 'backend',
       title: 'Missing Cache-Control Header',
       severity: 'medium',
@@ -978,6 +1330,9 @@ export function analyzeAllCategories(
     });
   } else if (cacheControl.toLowerCase().includes('no-store') || cacheControl.toLowerCase().includes('no-cache')) {
     push({
+      ruleId: 'BE_CACHE_CONTROL',
+      subCategory: 'headers',
+      confidence: 'verified_direct',
       category: 'backend',
       title: 'Cache-Control Restricts Public Caching',
       severity: 'informational',
@@ -994,6 +1349,9 @@ export function analyzeAllCategories(
     });
   } else {
     push({
+      ruleId: 'BE_CACHE_CONTROL',
+      subCategory: 'headers',
+      confidence: 'verified_direct',
       category: 'backend',
       title: 'Cache-Control Policy Configured',
       severity: 'passed',
@@ -1013,6 +1371,9 @@ export function analyzeAllCategories(
   const contentEncoding = getHeader('content-encoding');
   if (!contentEncoding && feInput.htmlSizeBytes > 2048) {
     push({
+      ruleId: 'BE_COMPRESSION',
+      subCategory: 'performance',
+      confidence: 'verified_direct',
       category: 'backend',
       title: 'HTTP Response Compression Not Observed',
       severity: 'medium',
@@ -1029,6 +1390,9 @@ export function analyzeAllCategories(
     });
   } else if (contentEncoding) {
     push({
+      ruleId: 'BE_COMPRESSION',
+      subCategory: 'performance',
+      confidence: 'verified_direct',
       category: 'backend',
       title: `Response Compression Active (${contentEncoding})`,
       severity: 'passed',
@@ -1049,6 +1413,9 @@ export function analyzeAllCategories(
   const corsCreds = getHeader('access-control-allow-credentials');
   if (corsOrigin === '*' && corsCreds === 'true') {
     push({
+      ruleId: 'BE_CORS_WILDCARD',
+      subCategory: 'headers',
+      confidence: 'verified_direct',
       category: 'backend',
       title: 'Unsafe CORS Wildcard Combined With Credentials',
       severity: 'high',
@@ -1067,6 +1434,9 @@ export function analyzeAllCategories(
 
   if (feInput.redirectCount > 2) {
     push({
+      ruleId: 'BE_REDIRECT_CHAIN',
+      subCategory: 'performance',
+      confidence: 'verified_direct',
       category: 'backend',
       title: 'Excessive Redirect Chain',
       severity: 'medium',
@@ -1084,13 +1454,13 @@ export function analyzeAllCategories(
   }
 
   // =========================================================================
-  // 4. PRODUCT & ENGAGEMENT
+  // 4. PRODUCT, SEO & ENGAGEMENT
   // =========================================================================
   const ctaCandidates = $('a, button').filter((_, el) => {
     const txt = $(el).text().trim().toLowerCase();
     return /(get started|sign up|start|try|book|contact|buy|analyze|subscribe|demo|learn more|join|download|request)/.test(txt);
   }).length;
-  const hasForms = $('form').length > 0;
+  const hasForms = formCount > 0;
   const navLinks = $('nav a').length;
   const hasSemanticMain = $('main').length > 0;
   const hasSemanticFooter = $('footer').length > 0;
@@ -1098,6 +1468,9 @@ export function analyzeAllCategories(
 
   if (h1Count === 0) {
     push({
+      ruleId: 'ENG_H1',
+      subCategory: 'seo',
+      confidence: 'static_html',
       category: 'engagement',
       title: 'No Primary H1 Headline Found in Static HTML',
       severity: 'medium',
@@ -1114,6 +1487,9 @@ export function analyzeAllCategories(
     });
   } else if (h1Count > 1) {
     push({
+      ruleId: 'ENG_H1',
+      subCategory: 'seo',
+      confidence: 'static_html',
       category: 'engagement',
       title: 'Multiple H1 Headlines Present',
       severity: 'low',
@@ -1130,6 +1506,9 @@ export function analyzeAllCategories(
     });
   } else {
     push({
+      ruleId: 'ENG_H1',
+      subCategory: 'seo',
+      confidence: 'static_html',
       category: 'engagement',
       title: 'Clear Heading Hierarchy (Single H1)',
       severity: 'passed',
@@ -1148,12 +1527,15 @@ export function analyzeAllCategories(
 
   if (ctaCandidates === 0 && !hasForms && bodyWords > 20) {
     push({
+      ruleId: 'ENG_CTA',
+      subCategory: 'content',
+      confidence: 'static_html',
       category: 'engagement',
       title: 'Low Call-to-Action (CTA) Visibility in Static HTML',
       severity: 'medium',
       priorityGroup: 'optimization',
       description: 'No clear action-oriented CTA buttons or forms were detected in the initial HTML.',
-      evidence: `Action CTA links/buttons detected: ${ctaCandidates}, Forms: ${$('form').length}, Word count: ${bodyWords}`,
+      evidence: `Action CTA links/buttons detected: ${ctaCandidates}, Forms: ${formCount}, Word count: ${bodyWords}`,
       affectedUrl: feInput.finalUrl,
       observedValue: '0 primary CTAs detected',
       impact: 'Visitors without a clear next step convert at lower rates.',
@@ -1164,12 +1546,15 @@ export function analyzeAllCategories(
     });
   } else if (ctaCandidates > 0 || hasForms) {
     push({
+      ruleId: 'ENG_CTA',
+      subCategory: 'content',
+      confidence: 'static_html',
       category: 'engagement',
       title: 'Call-to-Action Elements Present',
       severity: 'passed',
       priorityGroup: 'best_practice',
-      description: `Detected ${ctaCandidates} action-oriented CTA control(s) and ${$('form').length} interactive form(s).`,
-      evidence: `CTA controls: ${ctaCandidates} | Forms: ${$('form').length}`,
+      description: `Detected ${ctaCandidates} action-oriented CTA control(s) and ${formCount} interactive form(s).`,
+      evidence: `CTA controls: ${ctaCandidates} | Forms: ${formCount}`,
       affectedUrl: feInput.finalUrl,
       observedValue: `${ctaCandidates} CTAs`,
       impact: 'Provides clear conversion pathways for visitors.',
@@ -1182,6 +1567,9 @@ export function analyzeAllCategories(
 
   if (navLinks === 0 && !hasSemanticMain && bodyWords > 20) {
     push({
+      ruleId: 'ENG_LANDMARKS',
+      subCategory: 'accessibility',
+      confidence: 'static_html',
       category: 'engagement',
       title: 'Semantic Landmarks & Navigation Signals Limited',
       severity: 'low',
@@ -1200,6 +1588,9 @@ export function analyzeAllCategories(
 
   if (!ogTitle || !canonical) {
     push({
+      ruleId: 'SEO_OG_CANONICAL',
+      subCategory: 'seo',
+      confidence: 'static_html',
       category: 'engagement',
       title: 'Social Share (Open Graph) or Canonical Metadata Incomplete',
       severity: 'low',
@@ -1214,6 +1605,46 @@ export function analyzeAllCategories(
       verification: 'Check document <head> tags.',
       status: 'open',
     });
+  } else {
+    push({
+      ruleId: 'SEO_OG_CANONICAL',
+      subCategory: 'seo',
+      confidence: 'static_html',
+      category: 'engagement',
+      title: 'Open Graph & Canonical Metadata Present',
+      severity: 'passed',
+      priorityGroup: 'best_practice',
+      description: 'Canonical URL and Open Graph sharing metadata are declared in the HTML document head.',
+      evidence: `og:title: ${ogTitle.slice(0, 80)} | canonical: ${canonical}`,
+      affectedUrl: feInput.finalUrl,
+      observedValue: 'OG + Canonical present',
+      impact: 'Improves social preview clarity and search engine URL canonicalization.',
+      recommendation: 'Keep canonical URLs aligned across paginated and localized routes.',
+      remediation: 'No action required.',
+      verification: 'Head tags verified.',
+      status: 'passed',
+    });
+  }
+
+  if (!hasRobotsTxt || !hasSitemapXml) {
+    push({
+      ruleId: 'SEO_CRAWL_FILES',
+      subCategory: 'seo',
+      confidence: 'verified_direct',
+      category: 'engagement',
+      title: 'Crawler Guidance Files Incomplete (robots.txt / sitemap.xml)',
+      severity: 'informational',
+      priorityGroup: 'optimization',
+      description: `Observed robots.txt=${hasRobotsTxt ? 'HTTP 200' : 'absent'}, sitemap.xml=${hasSitemapXml ? 'HTTP 200' : 'absent'}.`,
+      evidence: `robots.txt: ${hasRobotsTxt ? 'Found' : 'Not found'} | sitemap.xml: ${hasSitemapXml ? 'Found' : 'Not found'}`,
+      affectedUrl: `${new URL(secInput.finalUrl).origin}/robots.txt`,
+      observedValue: `robots:${hasRobotsTxt ? 'Yes' : 'No'} sitemap:${hasSitemapXml ? 'Yes' : 'No'}`,
+      impact: 'XML sitemaps and robots.txt guide search engine indexing efficiently.',
+      recommendation: 'Publish robots.txt and a valid sitemap.xml referencing canonical public pages.',
+      remediation: 'User-agent: *\nAllow: /\nSitemap: https://yourdomain.com/sitemap.xml',
+      verification: 'Fetch /robots.txt and /sitemap.xml and confirm HTTP 200.',
+      status: 'open',
+    });
   }
 
   // =========================================================================
@@ -1221,6 +1652,9 @@ export function analyzeAllCategories(
   // =========================================================================
   if (!coverage.databaseVerified) {
     push({
+      ruleId: 'EXT_DB_NOT_ASSESSED',
+      subCategory: 'infrastructure',
+      confidence: 'not_assessed',
       category: 'database',
       title: 'Database Security Not Assessed from Public URL',
       severity: 'informational',
@@ -1239,6 +1673,9 @@ export function analyzeAllCategories(
 
   if (!coverage.hostingVerified) {
     push({
+      ruleId: 'EXT_HOSTING_NOT_ASSESSED',
+      subCategory: 'infrastructure',
+      confidence: 'not_assessed',
       category: 'hosting',
       title: 'Hosting Configuration Cannot Be Fully Verified Publicly',
       severity: 'informational',
@@ -1257,6 +1694,9 @@ export function analyzeAllCategories(
 
   if (!coverage.backupVerified) {
     push({
+      ruleId: 'EXT_BACKUP_NOT_ASSESSED',
+      subCategory: 'infrastructure',
+      confidence: 'not_assessed',
       category: 'backup',
       title: 'Backup Status Unavailable',
       severity: 'informational',
@@ -1275,11 +1715,13 @@ export function analyzeAllCategories(
 
   const scores = calculateCategoryScores(findings);
   const findingsCount = countSeverities(findings);
+  const postureFingerprint = computePostureFingerprint(findings, scores);
 
   return {
     findings,
     scores,
     findingsCount,
+    postureFingerprint,
     domStats: {
       domNodeCount,
       scriptCount,
@@ -1290,6 +1732,7 @@ export function analyzeAllCategories(
       imagesWithoutDimensions,
       linkCount,
       headingCount: { h1: h1Count, h2: h2Count, h3: h3Count },
+      frontendDetails,
     },
   };
 }
@@ -1334,6 +1777,16 @@ export function calculateCategoryScores(findings: ScanFinding[]): CategoryScores
     return Math.max(0, Math.min(100, Math.round(score)));
   };
 
+  const scoreForSubCategory = (sub: ScanFinding['subCategory']): number | null => {
+    const assessed = findings.filter((f) => f.subCategory === sub && f.status !== 'not_assessed');
+    if (assessed.length === 0) return null;
+    let score = 100;
+    for (const f of assessed) {
+      score -= SEVERITY_PENALTIES[f.severity] ?? 0;
+    }
+    return Math.max(0, Math.min(100, Math.round(score)));
+  };
+
   const security = scoreForCategory('security');
   const frontend = scoreForCategory('frontend');
   const backend = scoreForCategory('backend');
@@ -1342,7 +1795,16 @@ export function calculateCategoryScores(findings: ScanFinding[]): CategoryScores
   const valid = [security, frontend, backend, engagement].filter((s): s is number => s !== null);
   const overall = valid.length > 0 ? Math.round(valid.reduce((a, b) => a + b, 0) / valid.length) : null;
 
-  return { security, frontend, backend, engagement, overall };
+  return {
+    security,
+    frontend,
+    backend,
+    engagement,
+    overall,
+    seo: scoreForSubCategory('seo'),
+    accessibility: scoreForSubCategory('accessibility'),
+    performance: scoreForSubCategory('performance'),
+  };
 }
 
 export function buildExecutiveSummary(

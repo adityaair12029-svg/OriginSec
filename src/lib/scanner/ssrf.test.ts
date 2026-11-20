@@ -49,3 +49,13 @@ test('validateTargetUrl enforces protocol, port, credential, and host restrictio
   assert.equal(ok.normalizedUrl, 'https://example.com/');
   assert.equal(ok.hostname, 'example.com');
 });
+
+test('validateTargetUrl canonicalizes URLs identically across mobile/desktop tracking parameters', () => {
+  const desktop = validateTargetUrl('https://Example.COM/?utm_source=twitter&b=2&a=1#section');
+  const mobile = validateTargetUrl('https://example.com/?a=1&fbclid=xyz123&b=2&utm_medium=mobile');
+  assert.equal(desktop.valid, true);
+  assert.equal(mobile.valid, true);
+  assert.equal(desktop.normalizedUrl, 'https://example.com/?a=1&b=2');
+  assert.equal(mobile.normalizedUrl, 'https://example.com/?a=1&b=2');
+  assert.equal(desktop.normalizedUrl, mobile.normalizedUrl);
+});

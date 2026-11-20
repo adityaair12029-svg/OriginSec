@@ -1,6 +1,7 @@
 import React from 'react';
 import { CheckCircle2, Circle, Loader2, XCircle, Ban } from 'lucide-react';
 import type { ScanStatus } from '../types/audit';
+import { ORDERED_PROGRESS_STAGES } from '../lib/scanner/profiles';
 
 export interface ActiveScanProgress {
   scanId: string;
@@ -12,19 +13,6 @@ export interface ActiveScanProgress {
   stagesLog: Array<{ stage: string; status: 'completed' | 'skipped' | 'failed'; detail: string; timestamp: string }>;
   error?: string;
 }
-
-const ORDERED_STAGES = [
-  'Validating target',
-  'Checking DNS',
-  'Checking HTTPS/TLS',
-  'Inspecting response headers',
-  'Analysing homepage',
-  'Inspecting linked pages',
-  'Analysing performance',
-  'Evaluating content quality',
-  'Preparing findings',
-  'Generating report',
-];
 
 interface ScanProgressViewProps {
   progress: ActiveScanProgress;
@@ -76,7 +64,13 @@ export const ScanProgressView: React.FC<ScanProgressViewProps> = ({
         </div>
 
         {/* Progress Bar */}
-        <div className="w-full h-2 rounded-full bg-[#EFECE4] dark:bg-[#1B1B1B] overflow-hidden" role="progressbar" aria-valuenow={progress.progressPercent} aria-valuemin={0} aria-valuemax={100}>
+        <div
+          className="w-full h-2 rounded-full bg-[#EFECE4] dark:bg-[#1B1B1B] overflow-hidden"
+          role="progressbar"
+          aria-valuenow={progress.progressPercent}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
           <div
             className={`h-full transition-all duration-300 ${
               isTerminalFailure ? 'bg-red-500' : 'bg-[#008C55] dark:bg-[#00E69A]'
@@ -110,7 +104,7 @@ export const ScanProgressView: React.FC<ScanProgressViewProps> = ({
 
         {/* Stage Checklist */}
         <div className="space-y-2.5">
-          {ORDERED_STAGES.map((stageName) => {
+          {ORDERED_PROGRESS_STAGES.map((stageName) => {
             const isCompleted = completedNames.has(stageName);
             const isFailed = failedNames.has(stageName);
             const isActive = !isTerminalFailure && progress.currentStage === stageName && !isCompleted;

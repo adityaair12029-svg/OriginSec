@@ -68,10 +68,10 @@ service cloud.firestore {
           'authorizedConfirmed', 'scannerVersion', 'startedAt', 'updatedAt'
         ])
         && data.keys().hasOnly([
-          'scanId', 'ownerUid', 'targetUrl', 'normalizedDomain', 'status',
-          'currentStage', 'progressPercent', 'authorizedConfirmed', 'coverage',
-          'scores', 'summary', 'aiExplanation', 'metrics', 'findingsCount',
-          'scannerVersion', 'startedAt', 'completedAt', 'updatedAt'
+          'scanId', 'ownerUid', 'targetUrl', 'normalizedDomain', 'scanProfile',
+          'postureFingerprint', 'status', 'currentStage', 'progressPercent',
+          'authorizedConfirmed', 'coverage', 'scores', 'summary', 'aiExplanation',
+          'metrics', 'findingsCount', 'scannerVersion', 'startedAt', 'completedAt', 'updatedAt'
         ])
         && data.scanId == scanId
         && isValidId(data.scanId)
@@ -79,6 +79,8 @@ service cloud.firestore {
         && isValidId(data.ownerUid)
         && data.targetUrl is string && data.targetUrl.size() >= 8 && data.targetUrl.size() <= 2048
         && data.normalizedDomain is string && data.normalizedDomain.size() >= 1 && data.normalizedDomain.size() <= 255
+        && (!('scanProfile' in data) || data.scanProfile in ['quick', 'standard', 'comprehensive', 'verified_owner', 'performance', 'frontend_quality'])
+        && (!('postureFingerprint' in data) || (data.postureFingerprint is string && data.postureFingerprint.size() <= 64))
         && data.status in ['pending', 'queued', 'running', 'partially_completed', 'completed', 'failed', 'cancelled']
         && (!('currentStage' in data) || (data.currentStage is string && data.currentStage.size() <= 120))
         && (!('progressPercent' in data) || (data.progressPercent is int && data.progressPercent >= 0 && data.progressPercent <= 100))
@@ -102,16 +104,20 @@ service cloud.firestore {
           'status', 'createdAt'
         ])
         && data.keys().hasOnly([
-          'findingId', 'scanId', 'ownerUid', 'category', 'title', 'severity',
-          'priorityGroup', 'description', 'evidence', 'affectedUrl', 'observedValue',
-          'impact', 'recommendation', 'remediation', 'verification', 'status', 'createdAt'
+          'findingId', 'ruleId', 'scanId', 'ownerUid', 'category', 'subCategory',
+          'title', 'severity', 'priorityGroup', 'description', 'evidence',
+          'affectedUrl', 'observedValue', 'impact', 'recommendation', 'remediation',
+          'verification', 'status', 'confidence', 'manualReviewRequired',
+          'remediationNote', 'dueDate', 'resolvedAt', 'createdAt'
         ])
         && data.findingId == findingId
         && isValidId(data.findingId)
+        && (!('ruleId' in data) || (data.ruleId is string && data.ruleId.size() <= 80))
         && isValidId(data.scanId)
         && data.ownerUid == request.auth.uid
         && isValidId(data.ownerUid)
         && data.category in ['security', 'frontend', 'backend', 'engagement', 'api', 'database', 'hosting', 'backup', 'monitoring']
+        && (!('subCategory' in data) || (data.subCategory is string && data.subCategory.size() <= 40))
         && data.title is string && data.title.size() >= 1 && data.title.size() <= 200
         && data.severity in ['critical', 'high', 'medium', 'low', 'informational', 'passed']
         && (!('priorityGroup' in data) || data.priorityGroup in ['fix_immediately', 'fix_soon', 'optimization', 'best_practice', 'long_term'])
@@ -123,7 +129,91 @@ service cloud.firestore {
         && data.recommendation is string && data.recommendation.size() <= 2000
         && (!('remediation' in data) || (data.remediation is string && data.remediation.size() <= 2500))
         && data.verification is string && data.verification.size() <= 1500
-        && data.status in ['open', 'acknowledged', 'resolved', 'passed', 'not_assessed']
+        && data.status in ['open', 'acknowledged', 'in_progress', 'ready_for_verification', 'resolved', 'accepted_risk', 'passed', 'not_assessed']
+        && (!('confidence' in data) || (data.confidence is string && data.confidence.size() <= 40))
+        && (!('manualReviewRequired' in data) || data.manualReviewRequired is bool)
+        && (!('remediationNote' in data) || (data.remediationNote is string && data.remediationNote.size() <= 2000))
+        && (!('dueDate' in data) || data.dueDate == null || (data.dueDate is string && data.dueDate.size() <= 40))
+        && (!('resolvedAt' in data) || data.resolvedAt == null || (data.resolvedAt is string && data.resolvedAt.size() <= 40))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidWebsiteRecord(data, websiteId) {
+      return data.keys().hasAll([
+          'websiteId', 'ownerUid', 'name', 'targetUrl', 'normalizedDomain',
+          'verificationStatus', 'defaultProfile', 'monitoringPaused', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'websiteId', 'ownerUid', 'name', 'targetUrl', 'normalizedDomain',
+          'verificationStatus', 'defaultProfile', 'monitoringPaused',
+          'latestScanId', 'latestOverallScore', 'lastScannedAt', 'createdAt', 'updatedAt'
+        ])
+        && data.websiteId == websiteId
+        && isValidId(data.websiteId)
+        && data.ownerUid == request.auth.uid
+        && isValidId(data.ownerUid)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 150
+        && data.targetUrl is string && data.targetUrl.size() >= 8 && data.targetUrl.size() <= 2048
+        && data.normalizedDomain is string && data.normalizedDomain.size() >= 1 && data.normalizedDomain.size() <= 255
+        && data.verificationStatus in ['unverified', 'pending', 'verified']
+        && data.defaultProfile in ['quick', 'standard', 'comprehensive', 'verified_owner', 'performance', 'frontend_quality']
+        && data.monitoringPaused is bool
+        && (!('latestScanId' in data) || data.latestScanId == null || isValidId(data.latestScanId))
+        && (!('latestOverallScore' in data) || data.latestOverallScore == null || (data.latestOverallScore is int && data.latestOverallScore >= 0 && data.latestOverallScore <= 100))
+        && (!('lastScannedAt' in data) || data.lastScannedAt == null || (data.lastScannedAt is string && data.lastScannedAt.size() <= 40))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRemediationTask(data, taskId) {
+      return data.keys().hasAll([
+          'taskId', 'ownerUid', 'scanId', 'findingId', 'domain', 'targetUrl',
+          'title', 'category', 'severity', 'status', 'priority', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'taskId', 'ownerUid', 'scanId', 'findingId', 'ruleId', 'domain', 'targetUrl',
+          'title', 'category', 'severity', 'status', 'priority', 'notes',
+          'dueDate', 'lastVerifiedAt', 'verificationResult', 'createdAt', 'updatedAt'
+        ])
+        && data.taskId == taskId
+        && isValidId(data.taskId)
+        && data.ownerUid == request.auth.uid
+        && isValidId(data.ownerUid)
+        && isValidId(data.scanId)
+        && isValidId(data.findingId)
+        && (!('ruleId' in data) || (data.ruleId is string && data.ruleId.size() <= 80))
+        && data.domain is string && data.domain.size() >= 1 && data.domain.size() <= 255
+        && data.targetUrl is string && data.targetUrl.size() >= 8 && data.targetUrl.size() <= 2048
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 200
+        && data.category in ['security', 'frontend', 'backend', 'engagement', 'api', 'database', 'hosting', 'backup', 'monitoring']
+        && data.severity in ['critical', 'high', 'medium', 'low', 'informational', 'passed']
+        && data.status in ['open', 'acknowledged', 'in_progress', 'ready_for_verification', 'resolved', 'accepted_risk']
+        && data.priority in ['p1_critical', 'p2_high', 'p3_medium', 'p4_low']
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 2000))
+        && (!('dueDate' in data) || data.dueDate == null || (data.dueDate is string && data.dueDate.size() <= 40))
+        && (!('lastVerifiedAt' in data) || data.lastVerifiedAt == null || (data.lastVerifiedAt is string && data.lastVerifiedAt.size() <= 40))
+        && (!('verificationResult' in data) || (data.verificationResult is string && data.verificationResult.size() <= 1000))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidNotificationItem(data, notificationId) {
+      return data.keys().hasAll([
+          'notificationId', 'ownerUid', 'type', 'title', 'message', 'read', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'notificationId', 'ownerUid', 'type', 'title', 'message', 'domain', 'relatedId', 'read', 'createdAt'
+        ])
+        && data.notificationId == notificationId
+        && isValidId(data.notificationId)
+        && data.ownerUid == request.auth.uid
+        && isValidId(data.ownerUid)
+        && data.type in ['scan_completed', 'critical_finding', 'tls_expiry', 'monitoring_incident', 'verification_success']
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 200
+        && data.message is string && data.message.size() >= 1 && data.message.size() <= 1000
+        && (!('domain' in data) || (data.domain is string && data.domain.size() <= 255))
+        && (!('relatedId' in data) || (data.relatedId is string && data.relatedId.size() <= 128))
+        && data.read is bool
         && data.createdAt is timestamp;
     }
 
@@ -301,7 +391,7 @@ service cloud.firestore {
               (!(existing().status in ['completed', 'failed', 'cancelled'])
                 && incoming().diff(existing()).affectedKeys().hasOnly([
                   'status', 'currentStage', 'progressPercent', 'coverage', 'scores',
-                  'summary', 'metrics', 'findingsCount', 'completedAt', 'updatedAt'
+                  'summary', 'metrics', 'findingsCount', 'postureFingerprint', 'completedAt', 'updatedAt'
                 ])) ||
               (!(existing().status in ['completed', 'failed', 'cancelled'])
                 && incoming().status == 'cancelled'
@@ -333,9 +423,91 @@ service cloud.firestore {
         && incoming().createdAt == existing().createdAt
         && (
           isAdmin() ||
-          (existing().ownerUid == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['status']))
+          (existing().ownerUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'remediationNote', 'dueDate', 'resolvedAt']))
         );
       allow delete: if isValidId(findingId) && isVerifiedUser() && (existing().ownerUid == request.auth.uid || isAdmin());
+    }
+
+    match /websites/{websiteId} {
+      allow get: if isValidId(websiteId) && isVerifiedUser() && (existing().ownerUid == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isValidId(websiteId)
+        && isVerifiedUser()
+        && isValidWebsiteRecord(incoming(), websiteId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(websiteId)
+        && isVerifiedUser()
+        && isValidWebsiteRecord(incoming(), websiteId)
+        && incoming().websiteId == existing().websiteId
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().normalizedDomain == existing().normalizedDomain
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            existing().ownerUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'name', 'targetUrl', 'verificationStatus', 'defaultProfile',
+              'monitoringPaused', 'latestScanId', 'latestOverallScore', 'lastScannedAt', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(websiteId) && isVerifiedUser() && (existing().ownerUid == request.auth.uid || isAdmin());
+    }
+
+    match /remediationTasks/{taskId} {
+      allow get: if isValidId(taskId) && isVerifiedUser() && (existing().ownerUid == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isValidId(taskId)
+        && isVerifiedUser()
+        && isValidRemediationTask(incoming(), taskId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(taskId)
+        && isVerifiedUser()
+        && isValidRemediationTask(incoming(), taskId)
+        && incoming().taskId == existing().taskId
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().scanId == existing().scanId
+        && incoming().findingId == existing().findingId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            existing().ownerUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'status', 'priority', 'notes', 'dueDate', 'lastVerifiedAt', 'verificationResult', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(taskId) && isVerifiedUser() && (existing().ownerUid == request.auth.uid || isAdmin());
+    }
+
+    match /notifications/{notificationId} {
+      allow get: if isValidId(notificationId) && isVerifiedUser() && (existing().ownerUid == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isValidId(notificationId)
+        && isVerifiedUser()
+        && isValidNotificationItem(incoming(), notificationId)
+        && incoming().createdAt == request.time;
+      allow update: if isValidId(notificationId)
+        && isVerifiedUser()
+        && isValidNotificationItem(incoming(), notificationId)
+        && incoming().notificationId == existing().notificationId
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().createdAt == existing().createdAt
+        && (
+          isAdmin() ||
+          (
+            existing().ownerUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['read'])
+          )
+        );
+      allow delete: if isValidId(notificationId) && isVerifiedUser() && (existing().ownerUid == request.auth.uid || isAdmin());
     }
 
     match /integrations/{integrationId} {

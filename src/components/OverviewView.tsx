@@ -1,12 +1,14 @@
-import React from 'react';
-import { ArrowUpRight, PlusCircle } from 'lucide-react';
-import type { MonitoringTarget, WebsiteScan } from '../types/audit';
+import React, { useMemo } from 'react';
+import { Activity, ArrowUpRight, Globe, PlusCircle, Wrench } from 'lucide-react';
+import type { MonitoringTarget, RemediationTask, WebsiteRecord, WebsiteScan } from '../types/audit';
 import type { AppRoute } from './Header';
 import { EmptyWorkspaceState } from './DashboardShell';
 
 interface OverviewViewProps {
   scans: WebsiteScan[];
+  websites: WebsiteRecord[];
   monitoringTargets: MonitoringTarget[];
+  remediationTasks: RemediationTask[];
   onOpenReport: (scan: WebsiteScan) => void;
   onNavigate: (route: AppRoute) => void;
   userEmail?: string | null;
@@ -14,14 +16,17 @@ interface OverviewViewProps {
 
 export const OverviewView: React.FC<OverviewViewProps> = ({
   scans,
+  websites,
   monitoringTargets,
+  remediationTasks,
   onOpenReport,
   onNavigate,
   userEmail,
 }) => {
   const completedScans = scans.filter((s) => s.status === 'completed' || s.status === 'partially_completed');
   const openFindings = scans.reduce(
-    (acc, s) => acc + (s.findingsCount ? s.findingsCount.critical + s.findingsCount.high + s.findingsCount.medium + s.findingsCount.low : 0),
+    (acc, s) =>
+      acc + (s.findingsCount ? s.findingsCount.critical + s.findingsCount.high + s.findingsCount.medium + s.findingsCount.low : 0),
     0
   );
   const highCriticalFindings = scans.reduce(
@@ -31,18 +36,28 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
 
   const latestScan = scans[0] || null;
   const activeMonitors = monitoringTargets.filter((t) => t.enabled);
-  const latestMonitor = monitoringTargets[0] || null;
+  const openTasks = remediationTasks.filter((t) => t.status !== 'resolved' && t.status !== 'accepted_risk');
+
+  // Real scan activity grouped by last 7 scans' overall score
+  const activityPoints = useMemo(() => {
+    return completedScans
+      .slice(0, 8)
+      .reverse()
+      .map((s) => ({
+        scanId: s.scanId,
+        domain: s.normalizedDomain,
+        score: s.scores?.overall ?? 0,
+        date: new Date(s.startedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      }));
+  }, [completedScans]);
 
   const kpis = [
-    { label: 'Total Scans', value: scans.length },
+    { label: 'Registered Websites', value: websites.length },
     { label: 'Completed Scans', value: completedScans.length },
-    { label: 'Websites Monitored', value: activeMonitors.length },
-    { label: 'Open Findings', value: openFindings },
-    { label: 'High / Critical Findings', value: highCriticalFindings },
-    {
-      label: 'Latest Monitoring Status',
-      value: latestMonitor ? latestMonitor.lastStatus.toUpperCase() : 'None configured',
-    },
+    { label: 'Active Monitors', value: activeMonitors.length },
+    { label: 'Total Observed Issues', value: openFindings },
+    { label: 'High / Critical Issues', value: highCriticalFindings },
+    { label: 'Open Remediation Tasks', value: openTasks.length },
   ];
 
   return (
@@ -51,7 +66,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-[#151515] dark:text-white">Security &amp; Audit Overview</h1>
           <p className="text-[15px] text-[#777267] dark:text-[#929292] mt-1">
-            {userEmail ? `Signed in as ${userEmail} · Real-time persisted telemetry` : 'Real-time diagnostics summary'}
+            {userEmail ? `Signed in as ${userEmail} · Real-time deterministic telemetry` : 'Real-time diagnostics summary'}
           </p>
         </div>
         <button
@@ -79,33 +94,58 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         ))}
       </div>
 
-      {/* Latest Scan Highlight */}
+      {/* Latest Scan Highlight & Real Score Activity Chart */}
       {latestScan ? (
-        <section className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-6 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <section className="lg:col-span-2 rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#008C55] dark:text-[#00E69A]">
+                  Latest Verified Scan
+                </p>
+                <h2 className="text-lg font-bold text-[#151515] dark:text-white mt-0.5">
+                  {latestScan.normalizedDomain}
+                </h2>
+                <p className="text-xs text-[#777267] dark:text-[#929292] font-mono">
+                  {new Date(latestScan.startedAt).toLocaleString()} · Overall Score:{' '}
+                  {latestScan.scores?.overall ?? 'N/A'}/100
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onOpenReport(latestScan)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold border border-[#E7E0D3] dark:border-[#252525] text-[#151515] dark:text-white hover:border-[#008C55] dark:hover:border-[#00E69A] cursor-pointer whitespace-nowrap"
+              >
+                Open Full Report
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <p className="text-sm text-[#777267] dark:text-[#929292] leading-relaxed">{latestScan.summary}</p>
+          </section>
+
+          <section className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-6 flex flex-col justify-between space-y-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#008C55] dark:text-[#00E69A]">
-                Latest Scan
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#777267] dark:text-[#929292]">
+                Scan Score Trajectory
               </p>
-              <h2 className="text-lg font-bold text-[#151515] dark:text-white mt-0.5">
-                {latestScan.normalizedDomain}
-              </h2>
-              <p className="text-xs text-[#777267] dark:text-[#929292] font-mono">
-                {new Date(latestScan.startedAt).toLocaleString()} · Overall Score:{' '}
-                {latestScan.scores?.overall ?? 'N/A'}/100
+              <p className="text-xs text-[#777267] dark:text-[#666] mt-0.5">
+                Last {activityPoints.length} completed audit{activityPoints.length === 1 ? '' : 's'}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => onOpenReport(latestScan)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold border border-[#E7E0D3] dark:border-[#252525] text-[#151515] dark:text-white hover:border-[#008C55] dark:hover:border-[#00E69A] cursor-pointer whitespace-nowrap"
-            >
-              Open Full Report
-              <ArrowUpRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          <p className="text-sm text-[#777267] dark:text-[#929292] leading-relaxed">{latestScan.summary}</p>
-        </section>
+            <div className="flex items-end gap-2 h-24 pt-2">
+              {activityPoints.map((pt) => (
+                <div key={pt.scanId} className="flex-1 flex flex-col items-center gap-1 min-w-0" title={`${pt.domain}: ${pt.score}/100`}>
+                  <span className="text-[10px] font-mono tabular-nums text-[#777267] dark:text-[#929292]">{pt.score}</span>
+                  <div
+                    className="w-full max-w-[24px] rounded-t bg-[#008C55] dark:bg-[#00E69A]"
+                    style={{ height: `${Math.max(12, pt.score)}%` }}
+                  />
+                  <span className="text-[9px] text-[#777267] truncate w-full text-center">{pt.date}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
       ) : (
         <EmptyWorkspaceState
           title="No audits recorded yet"
@@ -113,6 +153,50 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           actionLabel="Start First Audit"
           onAction={() => onNavigate('home')}
         />
+      )}
+
+      {/* Website Properties & Active Monitors Snapshot */}
+      {(websites.length > 0 || monitoringTargets.length > 0 || openTasks.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <button
+            type="button"
+            onClick={() => onNavigate('websites')}
+            className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-5 text-left hover:border-[#008C55] transition-colors cursor-pointer space-y-1.5"
+          >
+            <div className="flex items-center justify-between">
+              <Globe className="w-4 h-4 text-[#008C55] dark:text-[#00E69A]" />
+              <ArrowUpRight className="w-4 h-4 text-[#777267]" />
+            </div>
+            <p className="text-sm font-bold text-[#151515] dark:text-white">My Websites ({websites.length})</p>
+            <p className="text-xs text-[#777267] dark:text-[#929292]">Manage domain verification &amp; scan profiles</p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onNavigate('remediation')}
+            className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-5 text-left hover:border-[#008C55] transition-colors cursor-pointer space-y-1.5"
+          >
+            <div className="flex items-center justify-between">
+              <Wrench className="w-4 h-4 text-[#008C55] dark:text-[#00E69A]" />
+              <ArrowUpRight className="w-4 h-4 text-[#777267]" />
+            </div>
+            <p className="text-sm font-bold text-[#151515] dark:text-white">Remediation Queue ({openTasks.length})</p>
+            <p className="text-xs text-[#777267] dark:text-[#929292]">Track open fixes and verify live resolution</p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onNavigate('monitoring')}
+            className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-5 text-left hover:border-[#008C55] transition-colors cursor-pointer space-y-1.5"
+          >
+            <div className="flex items-center justify-between">
+              <Activity className="w-4 h-4 text-[#008C55] dark:text-[#00E69A]" />
+              <ArrowUpRight className="w-4 h-4 text-[#777267]" />
+            </div>
+            <p className="text-sm font-bold text-[#151515] dark:text-white">Uptime &amp; TLS Monitors ({activeMonitors.length})</p>
+            <p className="text-xs text-[#777267] dark:text-[#929292]">Live HTTP checks &amp; certificate expiry alerts</p>
+          </button>
+        </div>
       )}
 
       {/* Recent Scans Table */}

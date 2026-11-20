@@ -28,6 +28,8 @@
         "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
         "targetUrl": { "type": "string", "minLength": 8, "maxLength": 2048 },
         "normalizedDomain": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "scanProfile": { "type": "string", "enum": ["quick", "standard", "comprehensive", "verified_owner", "performance", "frontend_quality"] },
+        "postureFingerprint": { "type": "string", "maxLength": 64 },
         "status": { "type": "string", "enum": ["pending", "queued", "running", "partially_completed", "completed", "failed", "cancelled"] },
         "currentStage": { "type": "string", "maxLength": 120 },
         "progressPercent": { "type": "integer" },
@@ -46,9 +48,11 @@
       "type": "object",
       "properties": {
         "findingId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ruleId": { "type": "string", "maxLength": 80 },
         "scanId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
         "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
         "category": { "type": "string", "enum": ["security", "frontend", "backend", "engagement", "api", "database", "hosting", "backup", "monitoring"] },
+        "subCategory": { "type": "string", "maxLength": 40 },
         "title": { "type": "string", "minLength": 1, "maxLength": 200 },
         "severity": { "type": "string", "enum": ["critical", "high", "medium", "low", "informational", "passed"] },
         "priorityGroup": { "type": "string", "enum": ["fix_immediately", "fix_soon", "optimization", "best_practice", "long_term"] },
@@ -60,10 +64,76 @@
         "recommendation": { "type": "string", "maxLength": 2000 },
         "remediation": { "type": "string", "maxLength": 2500 },
         "verification": { "type": "string", "maxLength": 1500 },
-        "status": { "type": "string", "enum": ["open", "acknowledged", "resolved", "passed", "not_assessed"] },
+        "status": { "type": "string", "enum": ["open", "acknowledged", "in_progress", "ready_for_verification", "resolved", "accepted_risk", "passed", "not_assessed"] },
+        "confidence": { "type": "string", "maxLength": 40 },
+        "manualReviewRequired": { "type": "boolean" },
+        "remediationNote": { "type": "string", "maxLength": 2000 },
+        "dueDate": { "type": "string", "maxLength": 40 },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["findingId", "scanId", "ownerUid", "category", "title", "severity", "description", "evidence", "impact", "recommendation", "verification", "status", "createdAt"]
+    },
+    "WebsiteRecord": {
+      "title": "WebsiteRecord",
+      "description": "User-managed website asset registry entry.",
+      "type": "object",
+      "properties": {
+        "websiteId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "targetUrl": { "type": "string", "minLength": 8, "maxLength": 2048 },
+        "normalizedDomain": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "verificationStatus": { "type": "string", "enum": ["unverified", "pending", "verified"] },
+        "defaultProfile": { "type": "string", "enum": ["quick", "standard", "comprehensive", "verified_owner", "performance", "frontend_quality"] },
+        "monitoringPaused": { "type": "boolean" },
+        "latestScanId": { "type": "string", "maxLength": 128 },
+        "latestOverallScore": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["websiteId", "ownerUid", "name", "targetUrl", "normalizedDomain", "verificationStatus", "defaultProfile", "monitoringPaused", "createdAt", "updatedAt"]
+    },
+    "RemediationTask": {
+      "title": "RemediationTask",
+      "description": "Trackable finding remediation task with verification status.",
+      "type": "object",
+      "properties": {
+        "taskId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "scanId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "findingId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ruleId": { "type": "string", "maxLength": 80 },
+        "domain": { "type": "string", "maxLength": 255 },
+        "targetUrl": { "type": "string", "maxLength": 2048 },
+        "title": { "type": "string", "maxLength": 200 },
+        "category": { "type": "string", "maxLength": 40 },
+        "severity": { "type": "string", "enum": ["critical", "high", "medium", "low", "informational", "passed"] },
+        "status": { "type": "string", "enum": ["open", "acknowledged", "in_progress", "ready_for_verification", "resolved", "accepted_risk"] },
+        "priority": { "type": "string", "enum": ["p1_critical", "p2_high", "p3_medium", "p4_low"] },
+        "notes": { "type": "string", "maxLength": 2000 },
+        "dueDate": { "type": "string", "maxLength": 40 },
+        "verificationResult": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["taskId", "ownerUid", "scanId", "findingId", "domain", "targetUrl", "title", "category", "severity", "status", "priority", "createdAt", "updatedAt"]
+    },
+    "NotificationItem": {
+      "title": "NotificationItem",
+      "description": "User security and monitoring notification item.",
+      "type": "object",
+      "properties": {
+        "notificationId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "type": { "type": "string", "enum": ["scan_completed", "critical_finding", "tls_expiry", "monitoring_incident", "verification_success"] },
+        "title": { "type": "string", "maxLength": 200 },
+        "message": { "type": "string", "maxLength": 1000 },
+        "domain": { "type": "string", "maxLength": 255 },
+        "relatedId": { "type": "string", "maxLength": 128 },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["notificationId", "ownerUid", "type", "title", "message", "read", "createdAt"]
     },
     "IntegrationRecord": {
       "title": "IntegrationRecord",
@@ -162,6 +232,18 @@
     "/scanFindings/{findingId}": {
       "schema": { "$ref": "#/entities/ScanFinding" },
       "description": "Individual findings belonging to a specific WebsiteScan."
+    },
+    "/websites/{websiteId}": {
+      "schema": { "$ref": "#/entities/WebsiteRecord" },
+      "description": "Managed website assets per user."
+    },
+    "/remediationTasks/{taskId}": {
+      "schema": { "$ref": "#/entities/RemediationTask" },
+      "description": "Trackable finding remediation tasks per user."
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/NotificationItem" },
+      "description": "Real-time user notifications for scans, TLS expiry, and incidents."
     },
     "/integrations/{integrationId}": {
       "schema": { "$ref": "#/entities/IntegrationRecord" },

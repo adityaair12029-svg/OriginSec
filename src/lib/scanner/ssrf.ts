@@ -178,8 +178,23 @@ export function validateTargetUrl(rawInput: string): UrlValidationResult {
     return { valid: false, error: 'Please provide a fully qualified public domain name (e.g. https://example.com).' };
   }
 
-  // Normalize URL without hash fragment
+  // Normalize URL canonically: remove fragment, strip common tracking query parameters,
+  // and sort remaining query parameters for deterministic cross-device scans.
   parsed.hash = '';
+  const trackingPrefixes = ['utm_', 'fbclid', 'gclid', 'yclid', 'mc_cid', 'mc_eid', 'msclkid'];
+  const keptParams: Array<[string, string]> = [];
+  parsed.searchParams.forEach((value, key) => {
+    const lk = key.toLowerCase();
+    if (!trackingPrefixes.some((p) => lk === p || lk.startsWith(p))) {
+      keptParams.push([key, value]);
+    }
+  });
+  keptParams.sort((a, b) => (a[0] === b[0] ? a[1].localeCompare(b[1]) : a[0].localeCompare(b[0])));
+  parsed.search = '';
+  for (const [k, v] of keptParams) {
+    parsed.searchParams.append(k, v);
+  }
+
   const port = parsed.port ? Number(parsed.port) : parsed.protocol === 'https:' ? 443 : 80;
 
   return {
@@ -216,7 +231,7 @@ export async function resolveAndVerifyHost(hostname: string): Promise<VerifiedRe
       return { safe: false, addresses: [], error: `DNS lookup returned no addresses for ${hostname}.` };
     }
 
-    const addresses = records.map((r) => r.address);
+    const addresses = Array.from(new Set(records.map((r) => r.address))).sort();
     for (const addr of addresses) {
       if (isPrivateOrReservedIp(addr)) {
         return {

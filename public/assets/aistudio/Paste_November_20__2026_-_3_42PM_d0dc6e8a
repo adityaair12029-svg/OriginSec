@@ -1,0 +1,1415 @@
+# ORIGINSEC 2.0 — EXTREME ADVANCED UPGRADE MASTER PROMPT
+
+## PROJECT IDENTITY
+
+Product: OriginSec
+Version: 2.0
+Founder: Aditya Choudhary
+Parent Company: DopTails
+Product Category: Website Security, Quality, Performance and Infrastructure Intelligence
+Development Platform: Google AI Studio Build Mode
+Source Control: GitHub
+Deployment Platform: Vercel
+Database: Firebase Firestore
+Authentication: Firebase Authentication with Google Sign-In
+
+# YOUR ROLE
+
+You are acting as a complete senior engineering team consisting of:
+
+- Principal Software Architect
+- Senior Full-Stack Engineer
+- Cybersecurity Engineer
+- Application Security Engineer
+- Backend Engineer
+- Frontend Engineer
+- Database Architect
+- Cloud Infrastructure Engineer
+- DevOps Engineer
+- QA Automation Engineer
+- UI/UX Designer
+- Accessibility Specialist
+- Technical Documentation Engineer
+
+Your task is to upgrade my EXISTING OriginSec application into OriginSec 2.0.
+
+IMPORTANT: This is an upgrade project, NOT a request to start a completely different application.
+
+First inspect the existing project and understand its architecture.
+
+Do not delete working functionality.
+
+Do not randomly replace the existing design.
+
+Do not remove existing Firebase integrations.
+
+Do not destroy the current database schema.
+
+Do not overwrite files without understanding their purpose.
+
+Preserve working functionality and improve the implementation.
+
+Do not create fake functionality merely to make the application look complete.
+
+Every feature must either work, or be clearly marked as requiring configuration.
+
+# PHASE 0 — EXISTING PROJECT INSPECTION
+
+Before changing code, inspect the complete existing project.
+
+Inspect:
+
+1. Every frontend component.
+2. Every backend route.
+3. Every existing API.
+4. Every authentication component.
+5. Every database connection.
+6. Every database collection.
+7. Every configuration file.
+8. Every environment variable reference.
+9. Every installed dependency.
+10. Every existing scanner service.
+11. Every report-generation component.
+12. Every navigation item.
+13. Every button and interactive element.
+14. Every integration.
+15. Every existing deployment configuration.
+
+Create an internal implementation inventory with these states:
+
+- WORKING
+- PARTIALLY WORKING
+- NOT IMPLEMENTED
+- BROKEN
+- REQUIRES EXTERNAL CONFIGURATION
+- CANNOT BE VERIFIED
+
+Run the available local project checks.
+
+Identify:
+- Broken imports.
+- Missing dependencies.
+- Duplicate components.
+- TypeScript problems.
+- API errors.
+- Database mistakes.
+- Missing environment variables.
+- Authentication issues.
+- Security weaknesses.
+- UI inconsistencies.
+- Responsive layout problems.
+
+Create an upgrade plan based on the actual source code.
+
+Then implement the upgrade.
+
+Do not stop after writing the plan.
+
+# PHASE 1 — PREMIUM ORIGINSEC 2.0 DESIGN SYSTEM
+
+Preserve the original OriginSec visual identity.
+
+Use the uploaded OriginSec reference screenshots.
+
+Maintain:
+
+- Minimalist premium aesthetic.
+- Black and white interface.
+- Green accent.
+- Elegant typography.
+- Clean navigation.
+- Rounded cards.
+- Subtle borders.
+- Professional report layout.
+- Circular category scores.
+
+Upgrade visual quality without changing the brand identity.
+
+## 1.1 Theme system
+
+Dark mode:
+- Background #050505
+- Cards #0C0C0C
+- Borders #252525
+- Text #FFFFFF
+- Secondary text #949494
+- Green #00E69A
+
+Light mode:
+- Background #F7F5EF
+- Cards #FFFFFF
+- Borders #E6DFD2
+- Text #171717
+- Secondary text #78746C
+- Green #008D59
+
+Requirements:
+- Real theme switching.
+- Persisted theme preference.
+- No flash of incorrect theme.
+- System theme support.
+- Accessible contrast.
+- Smooth transitions.
+
+## 1.2 Navigation
+
+Create these application sections:
+
+1. Overview
+2. New Scan
+3. My Websites
+4. Scan History
+5. Security Intelligence
+6. Frontend Intelligence
+7. API Intelligence
+8. Backend Assessment
+9. Database Assessment
+10. SEO & Content Quality
+11. Performance Lab
+12. Accessibility Centre
+13. Infrastructure
+14. Backup & Recovery
+15. Monitoring Centre
+16. Integrations
+17. Reports
+18. Settings
+
+Only show features appropriate to the current user's permissions.
+
+## 1.3 Dashboard design
+
+Build a premium dashboard with:
+
+- Welcome message.
+- Latest scan summary.
+- Website health overview.
+- Security findings.
+- Performance overview.
+- Active monitoring targets.
+- Recent incidents.
+- Scan activity graph.
+- Priority recommendations.
+
+Use actual database information.
+
+When there is no data, display a professional empty state.
+
+Never use random statistics.
+
+# PHASE 2 — ADVANCED WEBSITE MANAGEMENT
+
+Create a My Websites module.
+
+Users must be able to register websites they own or have authorization to assess.
+
+Website record:
+
+- Website ID.
+- Owner UID.
+- Domain.
+- Display name.
+- Website category.
+- Description.
+- Verification status.
+- Verification method.
+- Date added.
+- Last scan.
+- Monitoring status.
+- Integration status.
+
+Website verification options:
+
+1. DNS TXT challenge.
+2. HTML verification file.
+3. HTML meta-tag verification.
+
+Generate a unique, short-lived verification token.
+
+Verify ownership through server-side requests.
+
+Do not consider a domain verified merely because someone entered its URL.
+
+Support:
+- Add website.
+- Verify website.
+- Rename website.
+- Update configuration.
+- Pause monitoring.
+- Remove website.
+- View website history.
+
+Display authorization status clearly.
+
+# PHASE 3 — ADVANCED SCAN ENGINE
+
+Create a modular scanning architecture.
+
+The scanner must be an actual assessment engine, not a collection of static demonstration values.
+
+## 3.1 Scan configuration
+
+Before a scan starts, display:
+
+- Target website.
+- Authorization status.
+- Scan type.
+- Crawl depth.
+- Maximum page count.
+- Assessment categories.
+- Request limits.
+- Scan configuration.
+
+Scan profiles:
+
+A. Quick Assessment
+B. Standard Assessment
+C. Comprehensive External Assessment
+D. Verified Owner Assessment
+E. Performance Assessment
+F. Frontend Quality Assessment
+
+Comprehensive assessment should combine only checks supported by the available permissions and integrations.
+
+## 3.2 Scan execution
+
+Implement a persistent job-based architecture.
+
+Possible statuses:
+
+- Queued.
+- Initializing.
+- Running.
+- Partial.
+- Completed.
+- Failed.
+- Cancelled.
+
+Use background workers or an appropriate external job service for work that cannot safely fit into a single Vercel invocation.
+
+Implement:
+- Scan job creation.
+- Job ownership.
+- Execution tracking.
+- Progress updates.
+- Cancellation.
+- Retry policies.
+- Recovery of interrupted jobs.
+- Idempotency.
+- Result persistence.
+
+Avoid duplicate scans caused by repeated button clicks.
+
+Never depend on an in-memory process as the only record of a scan.
+
+## 3.3 Progress interface
+
+Show honest progress stages:
+
+- Validating target.
+- Checking DNS.
+- Checking HTTPS.
+- Measuring response.
+- Inspecting security headers.
+- Parsing frontend.
+- Analysing linked pages.
+- Checking accessibility signals.
+- Measuring performance.
+- Evaluating content.
+- Processing evidence.
+- Preparing report.
+
+Progress must come from actual job state.
+
+Never fabricate a completed percentage.
+
+## 3.4 Safe scanner networking
+
+This is compulsory.
+
+Implement strict Server-Side Request Forgery protection.
+
+Requirements:
+
+- Only HTTP and HTTPS.
+- Restrict normal checks to approved web ports.
+- Block localhost.
+- Block private IPv4.
+- Block private IPv6.
+- Block loopback.
+- Block link-local.
+- Block cloud metadata services.
+- Block reserved destinations.
+- Validate DNS resolutions.
+- Recheck resolved IP addresses.
+- Validate every redirect destination.
+- Prevent DNS rebinding.
+- Limit redirects.
+- Apply connection timeouts.
+- Apply response timeouts.
+- Limit downloaded data.
+- Limit concurrent requests.
+- Limit crawl depth.
+- Limit total requests.
+- Avoid unbounded downloads.
+
+Never forward browser authentication cookies to a scanned website.
+
+Never forward OriginSec secrets or Firebase tokens to a target.
+
+Never perform destructive checks against external websites.
+
+Never perform brute-force operations, credential guessing, exploitation, denial-of-service testing, or authentication bypass attempts.
+
+Only perform authorized, non-destructive defensive assessment.
+
+# PHASE 4 — SECURITY INTELLIGENCE ENGINE
+
+Build a sophisticated evidence-based security analysis module.
+
+## 4.1 TLS assessment
+
+Inspect:
+- HTTPS availability.
+- Certificate validity.
+- Hostname matching.
+- Certificate expiry.
+- Certificate issuer.
+- Certificate chain verification.
+- Available protocol information.
+- HTTP to HTTPS redirects.
+- Mixed content.
+
+## 4.2 Security header intelligence
+
+Evaluate:
+
+- Content-Security-Policy
+- Strict-Transport-Security
+- X-Frame-Options
+- X-Content-Type-Options
+- Referrer-Policy
+- Permissions-Policy
+- Cross-Origin-Opener-Policy
+- Cross-Origin-Resource-Policy
+- Cross-Origin-Embedder-Policy
+
+For each assessment, include:
+- Observed value.
+- Expected behaviour.
+- Evidence.
+- Risk explanation.
+- Severity.
+- Recommended improvement.
+- Verification steps.
+
+Analyse compatibility before recommending restrictive configurations.
+
+## 4.3 Cookie assessment
+
+Inspect cookie security attributes.
+
+Check:
+- Secure.
+- HttpOnly.
+- SameSite.
+- Path.
+- Domain.
+- Expiration policy.
+
+Do not reveal cookie values.
+
+Do not retain session identifiers.
+
+## 4.4 DNS security intelligence
+
+Assess:
+- DNS resolution.
+- A records.
+- AAAA records.
+- CNAME.
+- MX.
+- TXT.
+- SPF.
+- DMARC.
+- CAA.
+- DNSSEC evidence.
+
+Clearly distinguish an absent record from an unavailable DNS check.
+
+## 4.5 Additional configuration checks
+
+Check publicly observable:
+- security.txt.
+- robots.txt.
+- sitemap.xml.
+- Information-disclosing response headers.
+- HTTP redirect behaviour.
+- Public error responses.
+- Unexpected response configuration.
+
+Do not label an informational observation as a confirmed vulnerability.
+
+# PHASE 5 — FRONTEND INTELLIGENCE
+
+Build a comprehensive frontend quality assessment.
+
+Inspect:
+
+HTML:
+- Document title.
+- Meta description.
+- Viewport.
+- Language.
+- Heading hierarchy.
+- Semantic structure.
+- DOM count.
+
+Images:
+- Missing alt attributes.
+- Missing dimensions.
+- Loading hints.
+- Image response errors.
+- Oversized image signals.
+
+Resources:
+- Stylesheet count.
+- JavaScript count.
+- Resource response status.
+- Potentially render-blocking files.
+- Compression.
+- Caching.
+- Large resources.
+
+Navigation:
+- Internal links.
+- Broken internal links.
+- Empty links.
+- Navigation labels.
+- Main navigation consistency.
+
+Forms:
+- Associated labels.
+- Button text.
+- Input names.
+- Input types.
+- Accessible descriptions.
+- Required-field indicators.
+
+Use actual HTML analysis.
+
+Do not claim full browser rendering when only static HTML was inspected.
+
+# PHASE 6 — ACCESSIBILITY INTELLIGENCE
+
+Implement accessibility checks based on recognized WCAG principles.
+
+Assess:
+- Image alternatives.
+- Form labels.
+- Accessible names.
+- Heading structure.
+- Link names.
+- Keyboard accessibility where testable.
+- Document language.
+- Colour contrast when measured.
+- Landmark structure.
+- Button accessibility.
+
+Add an optional browser-based assessment service using an appropriate supported Lighthouse or axe-based implementation.
+
+Keep static and browser-rendered assessments separate.
+
+For each finding:
+- Explain the issue.
+- Explain its user impact.
+- Identify the evidence.
+- Provide improvement instructions.
+- Indicate whether manual review is required.
+
+Do not claim WCAG compliance based on an incomplete automated test.
+
+# PHASE 7 — PERFORMANCE LAB
+
+Create a separate Performance Lab.
+
+Measure:
+- DNS lookup.
+- TCP connection.
+- TLS negotiation.
+- Time to first byte.
+- Total response time.
+- Download size.
+- Redirect count.
+- Compression.
+- Cache-Control.
+
+Integrate Google PageSpeed Insights when the user configures an API key.
+
+Where available, show:
+- Lighthouse performance.
+- Lighthouse accessibility.
+- Lighthouse SEO.
+- Lighthouse best practices.
+- FCP.
+- LCP.
+- CLS.
+- TBT.
+- INP where field data is available.
+
+Separate:
+- Laboratory measurements.
+- Field measurements.
+- OriginSec direct measurements.
+
+Build:
+- Performance trends.
+- Historical comparison.
+- Performance regression detection.
+- Optimization recommendations.
+
+Use real API responses only.
+
+# PHASE 8 — API INTELLIGENCE
+
+Implement a dedicated API assessment centre.
+
+Support authorized API documentation.
+
+Input options:
+- User-supplied API base URL.
+- User-supplied endpoint list.
+- OpenAPI specification.
+- Swagger document.
+- Authorized integration.
+
+Inspect only the supplied or explicitly approved endpoints.
+
+Use safe requests appropriate to the documented endpoint.
+
+Never guess private endpoints.
+
+For each endpoint record:
+- Endpoint URL.
+- HTTP method.
+- Status.
+- Latency.
+- Content type.
+- Timestamp.
+- Response metadata.
+- Security observations.
+- Assessment result.
+
+Support:
+- Endpoint grouping.
+- Endpoint history.
+- Response time trends.
+- API availability monitoring.
+- API documentation review.
+
+Do not expose bearer tokens or credentials in reports.
+
+# PHASE 9 — BACKEND ARCHITECTURE INTELLIGENCE
+
+A public website cannot reveal all private backend implementation details.
+
+Separate the assessment into:
+
+PUBLIC EXTERNAL ASSESSMENT:
+- HTTP behaviour.
+- Server response time.
+- Cache configuration.
+- Response metadata.
+- Content-type behaviour.
+- Public endpoint health.
+
+VERIFIED OWNER ASSESSMENT:
+- Authorized server integrations.
+- Documented architecture.
+- User-supplied health endpoints.
+- Read-only telemetry.
+- Configuration metadata.
+
+Create an architectural report that distinguishes observed facts from owner-supplied information.
+
+Do not pretend to know the framework, source code, internal architecture, or database schema if there is no reliable evidence.
+
+# PHASE 10 — DATABASE INTELLIGENCE
+
+Implement a dedicated Database Centre.
+
+Supported integration architecture should be modular.
+
+Prepare for:
+- Firebase.
+- Supabase.
+- PostgreSQL-compatible providers.
+
+Assess through explicit owner-authorized connections:
+- Connection security.
+- Access policy.
+- Public access settings.
+- Authentication configuration.
+- Permission model.
+- Backup evidence.
+- Encryption evidence.
+
+Use read-only permissions wherever possible.
+
+Do not store raw passwords or connection strings.
+
+Do not perform destructive SQL operations.
+
+Do not modify customer database records.
+
+Display unavailable information as Not assessed.
+
+# PHASE 11 — HOSTING & INFRASTRUCTURE
+
+Create a dedicated infrastructure module.
+
+Prepare read-only integration interfaces for:
+
+- Vercel.
+- Netlify.
+- Cloudflare.
+- AWS.
+- Google Cloud.
+
+Inspect only information made available through valid authorized integrations.
+
+Potential checks:
+- Deployment status.
+- Domain settings.
+- Security configuration metadata.
+- Certificate configuration.
+- Available edge protections.
+- Environment-variable presence metadata.
+- Deployment history.
+
+Never display actual secret values.
+
+Make all connections revocable.
+
+# PHASE 12 — BACKUP & RECOVERY INTELLIGENCE
+
+Create a real backup assessment module.
+
+Monitor connected backup providers where supported.
+
+Record:
+- Provider.
+- Last backup.
+- Backup status.
+- Frequency.
+- Retention policy.
+- Encryption evidence.
+- Verification date.
+- Restore-test evidence.
+
+Show:
+- Healthy.
+- Warning.
+- Failed.
+- Not verified.
+- Integration required.
+
+A backup must never be shown as healthy without verified evidence.
+
+Do not automatically modify or delete user backups.
+
+# PHASE 13 — CONTINUOUS MONITORING CENTRE
+
+Implement real scheduled monitoring through an appropriate persistent execution service.
+
+Monitor:
+- Website availability.
+- HTTP status.
+- DNS resolution.
+- TLS certificate expiry.
+- Response time.
+- Approved API endpoints.
+- Security header changes.
+- Important regressions.
+
+Features:
+- Add target.
+- Configure frequency.
+- Pause.
+- Resume.
+- Remove target.
+- View history.
+- View incidents.
+- Configure notifications.
+
+Use actual scheduled checks.
+
+Do not use a JavaScript setInterval in a browser as production monitoring.
+
+Use durable records and deduplication to prevent excessive repeated incidents.
+
+# PHASE 14 — AI SECURITY ANALYST
+
+Integrate Gemini as an optional analysis assistant.
+
+Name:
+
+ORIGINSEC AI ANALYST
+
+Its responsibilities:
+
+- Explain technical issues.
+- Summarize evidence.
+- Explain severity.
+- Prioritize fixes.
+- Generate implementation guidance.
+- Compare historical reports.
+- Produce executive summaries.
+- Answer questions about the existing report.
+
+AI must use actual OriginSec evidence as its source.
+
+AI must not:
+- Invent vulnerabilities.
+- Invent scores.
+- Invent test results.
+- Invent integration status.
+- Claim successful fixes without evidence.
+
+Separate factual scanner output from AI explanations.
+
+Sanitize sensitive data before sending anything to an AI service.
+
+Never send:
+- Passwords.
+- Private keys.
+- Session cookies.
+- Authentication tokens.
+- Database credentials.
+
+# PHASE 15 — REPORT INTELLIGENCE
+
+Redesign the report experience while maintaining the existing screenshot-inspired layout.
+
+Report header:
+
+AUDIT REPORT — example.com
+
+Include:
+- Domain.
+- Scan ID.
+- Timestamp.
+- Status.
+- Scanner version.
+- Assessment scope.
+- Authorization status.
+- Coverage.
+- Visit site action.
+
+Create an executive summary based only on findings.
+
+## 15.1 Category scores
+
+Show:
+- Security.
+- Frontend.
+- Backend.
+- Engagement.
+- API.
+- Database.
+- Hosting.
+- Backup.
+- Monitoring.
+
+Score rules:
+- Calculate only from assessed checks.
+- Show coverage.
+- Explain scoring.
+- Do not award passing marks to untested categories.
+- Do not hide failed tests.
+- Show confidence and limitations.
+
+## 15.2 Finding structure
+
+Every finding must include:
+
+- Title.
+- Category.
+- Severity.
+- Evidence.
+- Observation.
+- Affected resource.
+- Impact.
+- Recommended fix.
+- Example configuration where suitable.
+- Verification steps.
+- Date detected.
+- Current status.
+
+Severity:
+- Critical.
+- High.
+- Medium.
+- Low.
+- Informational.
+- Passed.
+
+A missing security control is not automatically a confirmed exploit.
+
+# PHASE 16 — HISTORICAL INTELLIGENCE
+
+Build historical comparison.
+
+Allow users to compare:
+- Two scans of the same domain.
+- Security improvement.
+- Performance regression.
+- Newly discovered findings.
+- Resolved findings.
+- Changed headers.
+- Changed resource counts.
+- Score trends.
+- Monitoring incidents.
+
+Use actual stored scan snapshots.
+
+Add filters for:
+- Time period.
+- Severity.
+- Category.
+- Domain.
+- Status.
+
+Keep historical reports immutable except for explicitly supported administrative operations.
+
+# PHASE 17 — REMEDIATION WORKSPACE
+
+Create a Fix Management Centre.
+
+Allow a website owner to:
+- Assign a finding.
+- Add notes.
+- Set priority.
+- Set due date.
+- Mark as in progress.
+- Mark as resolved.
+- Attach resolution evidence.
+- Request re-verification.
+
+Statuses:
+- Open.
+- Acknowledged.
+- In progress.
+- Ready for verification.
+- Resolved.
+- Accepted risk.
+
+OriginSec should re-check a finding before marking it verified as fixed.
+
+Do not claim to repair external websites automatically.
+
+Any future automated remediation must require explicit authorization, preview, and confirmation.
+
+# PHASE 18 — GOOGLE AUTHENTICATION & MULTI-TENANCY
+
+Maintain Firebase Google Sign-In.
+
+Add strong account isolation.
+
+Implement:
+- User profile.
+- Organization/workspace structure.
+- Workspace members.
+- Invitations.
+- Owner role.
+- Administrator role.
+- Analyst role.
+- Viewer role.
+- Permission enforcement.
+- Secure sign-out.
+- Account settings.
+
+Every query must be scoped to the authorized owner or workspace.
+
+Use server-side Firebase token verification.
+
+Do not trust frontend roles.
+
+Use Firestore security rules and appropriate server-side validation.
+
+# PHASE 19 — ADMINISTRATION
+
+Create a protected OriginSec administration module.
+
+Founder:
+Aditya Choudhary.
+
+Parent company:
+DopTails.
+
+Admin capabilities:
+- User overview.
+- Platform health.
+- Scan job overview.
+- Integration health.
+- Error overview.
+- Service status.
+- Rate-limit configuration.
+- Audit logs.
+- Operational statistics.
+
+Admin access must be controlled through trusted server-side authorization.
+
+Never give administrator privileges based only on a browser field.
+
+Protect customer privacy.
+
+Administrators must not be able to casually read private user credentials or integration secrets.
+
+# PHASE 20 — NOTIFICATIONS
+
+Create a notification centre.
+
+Notification types:
+- Scan completed.
+- Important finding discovered.
+- Critical configuration issue.
+- Website unavailable.
+- Certificate expiry warning.
+- API outage.
+- Monitoring incident.
+- Finding resolved.
+- Backup verification warning.
+
+Add notification preferences.
+
+Support email delivery through a properly configured provider.
+
+Do not pretend an email was sent when provider configuration is missing.
+
+# PHASE 21 — REPORT EXPORT
+
+Implement:
+- Professional PDF export.
+- CSV export.
+- JSON export.
+
+The PDF should use the OriginSec branding.
+
+Include:
+- Executive summary.
+- Assessment coverage.
+- Category scores.
+- Technical findings.
+- Evidence.
+- Remediation.
+- Methodology.
+- Limitations.
+- Scan timestamp.
+
+Ensure exports use actual database records.
+
+# PHASE 22 — ADVANCED SEARCH
+
+Create universal dashboard search.
+
+Search:
+- Websites.
+- Scan IDs.
+- Finding titles.
+- Reports.
+- API endpoints.
+- Monitoring events.
+- Integrations.
+
+Implement:
+- Filters.
+- Sorting.
+- Pagination.
+- Empty states.
+- Search error handling.
+
+Apply data-access controls to every search.
+
+# PHASE 23 — API AND DATABASE ARCHITECTURE
+
+Use the existing project architecture unless a migration is demonstrably necessary.
+
+Create modular services for:
+
+- Authentication.
+- Websites.
+- Ownership verification.
+- Scanner orchestration.
+- HTTP checks.
+- TLS checks.
+- DNS checks.
+- Header analysis.
+- HTML analysis.
+- Accessibility.
+- Performance.
+- API assessment.
+- Integrations.
+- Reporting.
+- Monitoring.
+- Notifications.
+- User preferences.
+
+Use strict TypeScript types.
+
+Validate incoming and outgoing data.
+
+Use structured API responses.
+
+Use consistent error handling.
+
+Do not put all application logic into one component or one giant API route.
+
+# PHASE 24 — DATABASE EVOLUTION
+
+Inspect existing Firestore structures before changing them.
+
+Use versioned migrations where necessary.
+
+Suggested collections:
+
+users
+organizations
+organizationMembers
+websites
+ownershipChallenges
+scanJobs
+scans
+scanFindings
+scanEvidence
+scanMetrics
+scanComparisons
+remediationTasks
+integrations
+integrationMetadata
+monitoringTargets
+monitoringChecks
+monitoringIncidents
+notifications
+auditEvents
+userPreferences
+
+Every customer-owned record must have an enforced ownership relationship.
+
+Avoid duplication of large evidence documents.
+
+Use suitable indexes and retention policies.
+
+Keep sensitive secrets outside ordinary report documents.
+
+# PHASE 25 — SECURITY OF ORIGINSEC
+
+Perform a defensive review of OriginSec itself.
+
+Assess:
+- Authentication.
+- Authorization.
+- Session handling.
+- Firestore permissions.
+- SSRF.
+- DNS rebinding.
+- Redirect handling.
+- CORS.
+- CSRF.
+- XSS.
+- Input validation.
+- Sensitive logging.
+- Secret exposure.
+- Rate limiting.
+- Resource consumption.
+- Dependency vulnerabilities.
+- Error-message leakage.
+- Cross-user data isolation.
+
+Use a deny-by-default access model.
+
+Do not disable security controls merely to make a feature work.
+
+# PHASE 26 — PERFORMANCE AND RELIABILITY
+
+Optimize:
+- Initial page load.
+- Route loading.
+- Component rendering.
+- Data fetching.
+- Database access.
+- Image delivery.
+- Code splitting.
+- API efficiency.
+
+Implement:
+- Loading states.
+- Error boundaries.
+- Request cancellation.
+- Retry policies with limits.
+- Duplicate request prevention.
+- Database pagination.
+- Caching of appropriate public information.
+
+Do not cache private user-specific data in shared public caches.
+
+# PHASE 27 — VERCEL PRODUCTION COMPATIBILITY
+
+The final product must be compatible with GitHub and Vercel deployment.
+
+Check:
+
+- Next.js runtime compatibility.
+- Node.js runtime requirements.
+- API route configuration.
+- Environment variables.
+- Firebase configuration.
+- Firebase authentication domains.
+- Firestore security rules.
+- Deployment build.
+- Static asset paths.
+- Production URLs.
+- HTTPS.
+- CORS.
+- Serverless constraints.
+- Execution duration.
+- Scheduled task configuration.
+- External background job dependencies.
+
+Do not depend on a permanent local Node.js process.
+
+Do not store permanent scan history in local temporary files.
+
+Do not assume that browser automation or a local executable is available in a Vercel serverless function.
+
+Use an appropriate external worker when required.
+
+Use persistent storage for jobs and results.
+
+If an optional service is missing, the core app must continue to work.
+
+# PHASE 28 — ENVIRONMENT CONFIGURATION
+
+Maintain a clear environment template.
+
+Include only variables actually needed by the implementation.
+
+Document:
+- Variable name.
+- Purpose.
+- Whether it is public or private.
+- Where it is obtained.
+- Where it must be configured.
+- Whether it is required or optional.
+
+Never expose private API keys.
+
+Never commit secrets to GitHub.
+
+Validate required server variables during application startup or route execution in a controlled manner.
+
+Show clear errors for missing configuration.
+
+# PHASE 29 — TESTING
+
+Create automated test suites.
+
+Unit tests:
+- URL validation.
+- Domain normalization.
+- DNS validation.
+- Header analysis.
+- Scoring.
+- Finding generation.
+- Ownership verification.
+- Authorization logic.
+
+Integration tests:
+- Authentication.
+- Scan creation.
+- Scan progress.
+- Firestore ownership.
+- Reports.
+- Exports.
+- Monitoring records.
+- API response handling.
+
+Security tests:
+- Unauthorized report access.
+- Cross-user data access.
+- Invalid URLs.
+- Private-address rejection.
+- Redirect validation.
+- Rate limiting.
+- Malformed input.
+- Secret redaction.
+
+End-to-end tests:
+- Register.
+- Sign in.
+- Add website.
+- Verify ownership.
+- Run assessment.
+- Open report.
+- Export report.
+- View scan history.
+- Sign out.
+
+Use controlled test websites and mock providers where external services are unavailable.
+
+Never describe a mocked test as a successful live-provider integration.
+
+# PHASE 30 — CI/CD
+
+Prepare GitHub Actions.
+
+Create a workflow that can run:
+
+1. Dependency installation.
+2. TypeScript checking.
+3. ESLint.
+4. Unit tests.
+5. Integration tests where configured.
+6. Production build.
+7. Dependency security checks.
+
+Do not commit API secrets to workflow files.
+
+Use protected repository secrets or supported deployment integrations.
+
+Do not automatically deploy a failing production build.
+
+# PHASE 31 — README AND OPERATIONS DOCUMENTATION
+
+Update README.md.
+
+Include:
+- Project purpose.
+- Architecture.
+- Technology stack.
+- Folder structure.
+- Installation.
+- Local development.
+- Google authentication.
+- Firebase setup.
+- Firestore structure.
+- Environment configuration.
+- Scanner safety model.
+- Integration setup.
+- Background jobs.
+- Monitoring.
+- GitHub Actions.
+- Vercel deployment.
+- Troubleshooting.
+- Production checklist.
+
+Also create:
+- ARCHITECTURE.md
+- SECURITY.md
+- DEPLOYMENT.md
+- SCANNER_METHODOLOGY.md
+- CONTRIBUTING.md
+- API_DOCUMENTATION.md
+
+Explain operational limitations honestly.
+
+# PHASE 32 — FINAL QUALITY GATE
+
+Before declaring OriginSec 2.0 ready:
+
+Check every existing feature.
+
+Check every new feature.
+
+Run TypeScript.
+
+Run linting.
+
+Run tests.
+
+Run the production build.
+
+Inspect all API routes.
+
+Inspect environment variables.
+
+Inspect Firestore permissions.
+
+Inspect scanner safety controls.
+
+Inspect authentication.
+
+Inspect responsive layout.
+
+Inspect report accuracy.
+
+Inspect PDF exports.
+
+Inspect deployment compatibility.
+
+Resolve all confirmed project-level defects that can be fixed.
+
+Create a final implementation report with the columns:
+
+Feature | Previous State | New State | Verification | Remaining Requirements
+
+Use the states:
+- Implemented and tested.
+- Implemented but not tested.
+- Requires external configuration.
+- Not implemented.
+- Blocked.
+
+Never claim:
+- 100% security.
+- Zero errors.
+- Guaranteed vulnerability detection.
+- Verified deployment without deployment evidence.
+- Successful backup without backup evidence.
+
+# FINAL INSTRUCTION — START WORK NOW
+
+You are working inside my existing OriginSec project.
+
+Do not output a giant explanation instead of changing the source code.
+
+First inspect the actual project.
+
+Then upgrade it.
+
+Do not recreate the application from scratch.
+
+Do not remove the existing screenshot-inspired design.
+
+Do not introduce fake buttons.
+
+Do not use hardcoded report data.
+
+Do not invent scan results.
+
+Do not skip backend functionality.
+
+Do not stop after Phase 1.
+
+Implement the modules in dependency order and preserve all completed work between development stages.
+
+If the development environment has context or output limits, divide the implementation into manageable phases and continue from the existing project state. Keep a checklist of completed and pending items.
+
+After each phase:
+- Review changed files.
+- Check imports.
+- Run relevant tests.
+- Fix errors.
+- Preserve working features.
+
+When you finish, provide an accurate summary of what is implemented, what was tested, and what still requires external credentials, integrations, or deployment.
+
+# BRAND IDENTITY
+
+ORIGINSEC
+
+Find weaknesses. Understand risks. Improve with evidence.
+
+Founder: Aditya Choudhary
+Parent Company: DopTails
+
+Build OriginSec 2.0 as a reliable, professional, secure, evidence-driven website intelligence platform.

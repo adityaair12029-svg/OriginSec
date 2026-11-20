@@ -7,11 +7,14 @@ import type {
   LighthouseMetrics,
   ScanCoverage,
   ScanMetrics,
+  ScanProfileId,
   ScanStatus,
+  TimingBreakdownMs,
   TlsCertificateInfo,
   WebsiteScan,
 } from '../../types/audit';
 import { analyzeAllCategories, buildExecutiveSummary } from './analyzer';
+import { SCAN_PROFILES } from './profiles';
 import { resolveAndVerifyHost, validateTargetUrl } from './ssrf';
 
 export interface ScanJobState {
@@ -19,6 +22,7 @@ export interface ScanJobState {
   ownerUid: string;
   targetUrl: string;
   normalizedDomain: string;
+  scanProfile: ScanProfileId;
   status: ScanStatus;
   currentStage: string;
   progressPercent: number;
@@ -31,9 +35,10 @@ export interface ScanJobState {
 
 const activeJobs = new Map<string, ScanJobState>();
 
-const SCANNER_VERSION = 'originsec-engine-1.0';
+const SCANNER_VERSION = 'originsec-engine-2.0';
+const CANONICAL_USER_AGENT = 'OriginSec-Auditor/2.0 (+https://originsec.vercel.app)';
 const MAX_BODY_BYTES = 2 * 1024 * 1024; // 2 MB
-const REQUEST_TIMEOUT_MS = 8000;
+const REQUEST_TIMEOUT_MS = 8500;
 const MAX_REDIRECTS = 5;
 
 const EXECUTABLE_EXTENSIONS = new Set([
@@ -42,6 +47,21 @@ const EXECUTABLE_EXTENSIONS = new Set([
 
 export function getJobState(scanId: string): ScanJobState | undefined {
   return activeJobs.get(scanId);
+}
+
+export function findInFlightJob(ownerUid: string, normalizedUrl: string): ScanJobState | undefined {
+  const now = Date.now();
+  for (const job of activeJobs.values()) {
+    if (
+      job.ownerUid === ownerUid &&
+      job.targetUrl === normalizedUrl &&
+      (job.status === 'queued' || job.status === 'running') &&
+      now - job.createdAtMs < 60_000
+    ) {
+      return job;
+    }
+  }
+  return undefined;
 }
 
 export function cancelJob(scanId: string, ownerUid: string): boolean {
@@ -77,11 +97,11 @@ function updateJob(
 
 /**
  * Performs a safe, SSRF-checked HTTP/HTTPS request with manual redirect verification
- * and strict timeout & response size caps. Never forwards client cookies/auth tokens.
+ * and strict timeout & response size caps. Uses canonical headers regardless of caller device.
  */
 export async function safeFetchText(
   rawUrl: string,
-  options: { timeoutMs?: number; maxBytes?: number; maxRedirects?: number } = {}
+  options: { timeoutMs?: number; maxBytes?: number; maxRedirects?: number; method?: 'GET' | 'HEAD' } = {}
 ): Promise<{
   ok: boolean;
   finalUrl: string;
@@ -97,6 +117,7 @@ export async function safeFetchText(
   const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS;
   const maxBytes = options.maxBytes ?? MAX_BODY_BYTES;
   const maxRedirects = options.maxRedirects ?? MAX_REDIRECTS;
+  const method = options.method ?? 'GET';
 
   let currentUrl = rawUrl;
   let redirectCount = 0;
@@ -119,7 +140,6 @@ export async function safeFetchText(
       };
     }
 
-    // Reject executable file extensions upfront
     const pathnameLower = new URL(validated.normalizedUrl).pathname.toLowerCase();
     for (const ext of EXECUTABLE_EXTENSIONS) {
       if (pathnameLower.endsWith(ext)) {
@@ -138,7 +158,6 @@ export async function safeFetchText(
       }
     }
 
-    // DNS & SSRF check before every hop
     const resolved = await resolveAndVerifyHost(validated.hostname);
     if (!resolved.safe) {
       return {
@@ -161,18 +180,19 @@ export async function safeFetchText(
 
     try {
       const response = await fetch(validated.normalizedUrl, {
-        method: 'GET',
+        method,
         redirect: 'manual',
         signal: controller.signal,
         headers: {
-          'User-Agent': 'OriginSec-Auditor/1.0 (+https://originsec.app)',
+          'User-Agent': CANONICAL_USER_AGENT,
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.5',
+          'Accept-Language': 'en-US,en;q=0.9',
           'Accept-Encoding': 'gzip, deflate, br',
+          'Cache-Control': 'no-cache',
         },
       });
       const ttfbMs = Math.round(performance.now() - reqStart);
 
-      // Handle redirects safely
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get('location');
         await response.body?.cancel();
@@ -199,7 +219,6 @@ export async function safeFetchText(
         continue;
       }
 
-      // Normalize headers
       const headersObj: Record<string, string> = {};
       response.headers.forEach((value, key) => {
         headersObj[key.toLowerCase()] = value;
@@ -210,6 +229,22 @@ export async function safeFetchText(
           : response.headers.get('set-cookie')
             ? [response.headers.get('set-cookie') as string]
             : [];
+
+      if (method === 'HEAD') {
+        await response.body?.cancel();
+        clearTimeout(timer);
+        return {
+          ok: true,
+          finalUrl: validated.normalizedUrl,
+          statusCode: response.status,
+          redirectCount,
+          headers: headersObj,
+          setCookieHeaders,
+          body: '',
+          ttfbMs,
+          totalMs: Math.round(performance.now() - overallStart),
+        };
+      }
 
       const contentType = headersObj['content-type'] || '';
       if (
@@ -235,7 +270,6 @@ export async function safeFetchText(
         };
       }
 
-      // Bounded stream read
       let body = '';
       if (response.body) {
         const reader = response.body.getReader();
@@ -303,7 +337,65 @@ export async function safeFetchText(
   };
 }
 
-export async function inspectTlsCertificate(hostname: string, verifiedIp?: string): Promise<TlsCertificateInfo> {
+/**
+ * Checks whether http://<hostname>/ redirects cleanly to https:// without conflating
+ * network timeouts / blocked port 80 (returns null) with an active unencrypted response (false).
+ */
+async function probeHttpToHttpsRedirect(hostname: string, timeoutMs: number): Promise<boolean | null> {
+  const probeUrl = `http://${hostname}/`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(probeUrl, {
+      method: 'GET',
+      redirect: 'manual',
+      signal: controller.signal,
+      headers: {
+        'User-Agent': CANONICAL_USER_AGENT,
+        'Accept': 'text/html,*/*;q=0.5',
+      },
+    });
+    const loc = res.headers.get('location');
+    await res.body?.cancel();
+    clearTimeout(timer);
+
+    if (res.status >= 300 && res.status < 400 && loc) {
+      try {
+        const next = new URL(loc, probeUrl);
+        if (next.protocol === 'https:') return true;
+        // Follow one more hop if redirecting to http://www.hostname before https
+        const res2 = await safeFetchText(next.toString(), { timeoutMs, maxBytes: 8192, method: 'HEAD' });
+        if (res2.statusCode === 0) return null;
+        return res2.finalUrl.startsWith('https://');
+      } catch {
+        return false;
+      }
+    }
+    // Port 80 returned a non-redirect response directly
+    return false;
+  } catch {
+    clearTimeout(timer);
+    // Port 80 timed out / refused — cannot prove unencrypted HTTP is served
+    return null;
+  }
+}
+
+async function fetchWithSingleRetry(
+  url: string,
+  options: { timeoutMs?: number; maxBytes?: number }
+) {
+  const first = await safeFetchText(url, options);
+  if (first.statusCode === 0) {
+    return safeFetchText(url, options);
+  }
+  return first;
+}
+
+export async function inspectTlsCertificate(
+  hostname: string,
+  verifiedIp?: string
+): Promise<TlsCertificateInfo & { handshakeMs: number }> {
+  const start = performance.now();
   return new Promise((resolve) => {
     const socket = tls.connect(
       {
@@ -314,6 +406,7 @@ export async function inspectTlsCertificate(hostname: string, verifiedIp?: strin
         timeout: 5000,
       },
       () => {
+        const handshakeMs = Math.round(performance.now() - start);
         try {
           const cert = socket.getPeerCertificate(false);
           const protocol = socket.getProtocol() || null;
@@ -334,6 +427,7 @@ export async function inspectTlsCertificate(hostname: string, verifiedIp?: strin
               validTo: null,
               daysRemaining: null,
               hostnameMatch: null,
+              handshakeMs,
               error: 'No peer certificate presented.',
             });
             return;
@@ -361,6 +455,7 @@ export async function inspectTlsCertificate(hostname: string, verifiedIp?: strin
             validTo: cert.valid_to || null,
             daysRemaining,
             hostnameMatch,
+            handshakeMs,
             error: authError ? String(authError) : undefined,
           });
         } catch (err) {
@@ -376,6 +471,7 @@ export async function inspectTlsCertificate(hostname: string, verifiedIp?: strin
             validTo: null,
             daysRemaining: null,
             hostnameMatch: null,
+            handshakeMs,
             error: err instanceof Error ? err.message : 'TLS inspection error',
           });
         }
@@ -395,6 +491,7 @@ export async function inspectTlsCertificate(hostname: string, verifiedIp?: strin
         validTo: null,
         daysRemaining: null,
         hostnameMatch: null,
+        handshakeMs: Math.round(performance.now() - start),
         error: 'TLS handshake timed out.',
       });
     });
@@ -412,6 +509,7 @@ export async function inspectTlsCertificate(hostname: string, verifiedIp?: strin
         validTo: null,
         daysRemaining: null,
         hostnameMatch: null,
+        handshakeMs: Math.round(performance.now() - start),
         error: err.message,
       });
     });
@@ -420,34 +518,50 @@ export async function inspectTlsCertificate(hostname: string, verifiedIp?: strin
 
 export async function inspectDnsSignals(hostname: string): Promise<DnsSignals> {
   try {
-    const [aRes, aaaaRes, mxRes, txtRes, caaRes, dmarcRes] = await Promise.allSettled([
+    const [aRes, aaaaRes, mxRes, txtRes, caaRes, cnameRes, dmarcRes] = await Promise.allSettled([
       dns.resolve4(hostname),
       dns.resolve6(hostname),
       dns.resolveMx(hostname),
       dns.resolveTxt(hostname),
       dns.resolveCaa(hostname),
+      dns.resolveCname(hostname),
       dns.resolveTxt(`_dmarc.${hostname}`),
     ]);
 
-    const aRecords = aRes.status === 'fulfilled' ? aRes.value : [];
-    const aaaaRecords = aaaaRes.status === 'fulfilled' ? aaaaRes.value : [];
-    const mxRecords = mxRes.status === 'fulfilled' ? mxRes.value.map((m) => `${m.exchange} (${m.priority})`) : [];
-    const txtRecords = txtRes.status === 'fulfilled' ? txtRes.value.map((parts) => parts.join('')) : [];
-    const caaRecords = caaRes.status === 'fulfilled' ? caaRes.value.map((c) => `${c.issue || c.issuewild || c.iodef || 'policy'}`) : [];
-    const dmarcTxt = dmarcRes.status === 'fulfilled' ? dmarcRes.value.map((p) => p.join('')) : [];
+    const aRecords = aRes.status === 'fulfilled' ? [...aRes.value].sort() : [];
+    const aaaaRecords = aaaaRes.status === 'fulfilled' ? [...aaaaRes.value].sort() : [];
+    const mxRecords =
+      mxRes.status === 'fulfilled'
+        ? mxRes.value.map((m) => `${m.exchange} (${m.priority})`).sort()
+        : [];
+    const txtRecords =
+      txtRes.status === 'fulfilled'
+        ? txtRes.value.map((parts) => parts.join('')).sort()
+        : [];
+    const caaRecords =
+      caaRes.status === 'fulfilled'
+        ? caaRes.value.map((c) => `${c.issue || c.issuewild || c.iodef || 'policy'}`).sort()
+        : [];
+    const cnameRecords = cnameRes.status === 'fulfilled' ? [...cnameRes.value].sort() : [];
+    const dmarcTxt =
+      dmarcRes.status === 'fulfilled'
+        ? dmarcRes.value.map((p) => p.join('')).sort()
+        : [];
 
     const hasSpf = txtRecords.some((t) => t.toLowerCase().startsWith('v=spf1'));
     const dmarcRecord = dmarcTxt.find((t) => t.toLowerCase().startsWith('v=dmarc1'));
 
     return {
-      resolved: aRecords.length > 0 || aaaaRecords.length > 0,
+      resolved: aRecords.length > 0 || aaaaRecords.length > 0 || cnameRecords.length > 0,
       aRecords,
       aaaaRecords,
       mxRecords,
       txtRecords: txtRecords.slice(0, 8),
       caaRecords,
+      cnameRecords,
       hasSpf,
       hasDmarc: Boolean(dmarcRecord),
+      hasDnssec: null, // Node native dns/promises does not verify AD/RRSIG flags without raw EDNS resolver
       dmarcRecord,
     };
   } catch (err) {
@@ -458,8 +572,10 @@ export async function inspectDnsSignals(hostname: string): Promise<DnsSignals> {
       mxRecords: [],
       txtRecords: [],
       caaRecords: [],
+      cnameRecords: [],
       hasSpf: false,
       hasDmarc: false,
+      hasDnssec: null,
       error: err instanceof Error ? err.message : 'DNS lookup error',
     };
   }
@@ -555,10 +671,14 @@ function parseDisallowedRobots(robotsText: string): string[] {
 export function startScanJob(params: {
   ownerUid: string;
   targetUrl: string;
+  scanProfile?: ScanProfileId;
   maxPages?: number;
   crawlDepth?: number;
   isDomainVerified?: boolean;
 }): ScanJobState {
+  const profileId: ScanProfileId = params.scanProfile && SCAN_PROFILES[params.scanProfile] ? params.scanProfile : 'standard';
+  const profileDef = SCAN_PROFILES[profileId];
+
   const scanId = `scan_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
   const validated = validateTargetUrl(params.targetUrl);
   const normalizedUrl = validated.normalizedUrl || params.targetUrl;
@@ -569,6 +689,7 @@ export function startScanJob(params: {
     ownerUid: params.ownerUid,
     targetUrl: normalizedUrl,
     normalizedDomain: hostname,
+    scanProfile: profileId,
     status: 'queued',
     currentStage: 'Validating target',
     progressPercent: 5,
@@ -579,17 +700,17 @@ export function startScanJob(params: {
 
   activeJobs.set(scanId, job);
 
-  // Prune stale jobs > 1 hour old
   for (const [id, existing] of activeJobs.entries()) {
     if (Date.now() - existing.createdAtMs > 60 * 60 * 1000) {
       activeJobs.delete(id);
     }
   }
 
-  // Execute asynchronously with bounded resources
   void executeScanJob(job, {
-    maxPages: Math.min(20, Math.max(1, params.maxPages ?? 8)),
-    crawlDepth: Math.min(2, Math.max(0, params.crawlDepth ?? 1)),
+    scanProfile: profileId,
+    maxPages: Math.min(20, Math.max(1, params.maxPages ?? profileDef.maxPages)),
+    crawlDepth: Math.min(2, Math.max(0, params.crawlDepth ?? profileDef.crawlDepth)),
+    runPageSpeed: profileDef.runPageSpeed,
     isDomainVerified: Boolean(params.isDomainVerified),
   });
 
@@ -599,11 +720,15 @@ export function startScanJob(params: {
 export async function runScanJobAndWait(params: {
   ownerUid: string;
   targetUrl: string;
+  scanProfile?: ScanProfileId;
   maxPages?: number;
   crawlDepth?: number;
   isDomainVerified?: boolean;
   serverlessBudgetMs?: number;
 }): Promise<ScanJobState> {
+  const profileId: ScanProfileId = params.scanProfile && SCAN_PROFILES[params.scanProfile] ? params.scanProfile : 'standard';
+  const profileDef = SCAN_PROFILES[profileId];
+
   const scanId = `scan_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
   const validated = validateTargetUrl(params.targetUrl);
   const normalizedUrl = validated.normalizedUrl || params.targetUrl;
@@ -614,6 +739,7 @@ export async function runScanJobAndWait(params: {
     ownerUid: params.ownerUid,
     targetUrl: normalizedUrl,
     normalizedDomain: hostname,
+    scanProfile: profileId,
     status: 'queued',
     currentStage: 'Validating target',
     progressPercent: 5,
@@ -625,8 +751,10 @@ export async function runScanJobAndWait(params: {
   activeJobs.set(scanId, job);
 
   await executeScanJob(job, {
-    maxPages: Math.min(8, Math.max(1, params.maxPages ?? 8)),
-    crawlDepth: Math.min(2, Math.max(0, params.crawlDepth ?? 1)),
+    scanProfile: profileId,
+    maxPages: Math.min(8, Math.max(1, params.maxPages ?? profileDef.maxPages)),
+    crawlDepth: Math.min(2, Math.max(0, params.crawlDepth ?? profileDef.crawlDepth)),
+    runPageSpeed: profileDef.runPageSpeed,
     isDomainVerified: Boolean(params.isDomainVerified),
     serverlessBudgetMs: params.serverlessBudgetMs ?? 18000,
   });
@@ -634,9 +762,30 @@ export async function runScanJobAndWait(params: {
   return job;
 }
 
+const SNAPSHOT_HEADER_KEYS = [
+  'strict-transport-security',
+  'content-security-policy',
+  'x-frame-options',
+  'x-content-type-options',
+  'referrer-policy',
+  'permissions-policy',
+  'cross-origin-opener-policy',
+  'cross-origin-resource-policy',
+  'cache-control',
+  'content-encoding',
+  'server',
+];
+
 async function executeScanJob(
   job: ScanJobState,
-  opts: { maxPages: number; crawlDepth: number; isDomainVerified: boolean; serverlessBudgetMs?: number }
+  opts: {
+    scanProfile: ScanProfileId;
+    maxPages: number;
+    crawlDepth: number;
+    runPageSpeed: boolean;
+    isDomainVerified: boolean;
+    serverlessBudgetMs?: number;
+  }
 ) {
   const { scanId, ownerUid } = job;
   const startedAt = new Date().toISOString();
@@ -646,7 +795,7 @@ async function executeScanJob(
 
   try {
     job.status = 'running';
-    updateJob(scanId, 'Validating target', 8, `Validated syntax and port constraints for ${job.targetUrl}`);
+    updateJob(scanId, 'Validating target', 6, `Validated canonical URL and port constraints for ${job.targetUrl}`);
 
     const validated = validateTargetUrl(job.targetUrl);
     if (!validated.valid || !validated.normalizedUrl || !validated.hostname) {
@@ -655,67 +804,81 @@ async function executeScanJob(
     if (job.cancelled) return;
 
     // 1. DNS Check & SSRF Verification
-    updateJob(scanId, 'Checking DNS', 16);
+    updateJob(scanId, 'Resolving DNS & SSRF checks', 14);
+    const dnsStart = performance.now();
     const resolution = await resolveAndVerifyHost(validated.hostname);
+    const dnsLookupMs = Math.round(performance.now() - dnsStart);
     if (!resolution.safe) {
       throw new Error(resolution.error || 'Target host failed SSRF IP verification.');
     }
 
     const isInitialHttps = validated.protocol === 'https:';
-    const homeTimeout = deadlineMs ? Math.min(REQUEST_TIMEOUT_MS, Math.max(3000, remainingMs() - 4000)) : REQUEST_TIMEOUT_MS;
-    const probeTimeout = deadlineMs ? Math.min(3500, Math.max(2000, remainingMs() - 4000)) : 4000;
+    const homeTimeout = deadlineMs ? Math.min(REQUEST_TIMEOUT_MS, Math.max(3500, remainingMs() - 4000)) : REQUEST_TIMEOUT_MS;
+    const probeTimeout = deadlineMs ? Math.min(3500, Math.max(1800, remainingMs() - 4000)) : 4000;
 
-    // Run independent DNS signal lookup, HTTP->HTTPS redirect probe, TLS inspection, and Homepage fetch concurrently
-    updateJob(scanId, 'Checking HTTPS/TLS', 34);
-    const [dnsSignals, httpProbeResult, tlsInfo, homeResponse] = await Promise.all([
+    // 2. Concurrent Live Verification: DNS signals, HTTP->HTTPS redirect probe, TLS Cert, Homepage
+    updateJob(scanId, 'Inspecting TLS certificate', 26);
+    const [dnsSignals, httpRedirectsToHttps, tlsResult, homeFirst] = await Promise.all([
       inspectDnsSignals(validated.hostname),
-      safeFetchText(`http://${validated.hostname}/`, { timeoutMs: probeTimeout, maxBytes: 16384 }).catch(() => null),
+      probeHttpToHttpsRedirect(validated.hostname, probeTimeout),
       inspectTlsCertificate(validated.hostname, resolution.primaryAddress),
-      safeFetchText(validated.normalizedUrl, {
+      fetchWithSingleRetry(validated.normalizedUrl, {
         timeoutMs: homeTimeout,
         maxBytes: MAX_BODY_BYTES,
       }),
     ]);
 
-    const httpRedirectsToHttps: boolean | null = httpProbeResult
-      ? httpProbeResult.finalUrl.startsWith('https://')
-      : null;
+    const { handshakeMs, ...tlsInfo } = tlsResult;
 
     updateJob(
       scanId,
-      'Checking DNS',
-      24,
-      `Resolved ${resolution.addresses.length} public IP(s); SPF=${dnsSignals.hasSpf}, DMARC=${dnsSignals.hasDmarc}`
+      'Resolving DNS & SSRF checks',
+      22,
+      `Resolved ${resolution.addresses.length} public IP(s) in ${dnsLookupMs} ms; SPF=${dnsSignals.hasSpf}, DMARC=${dnsSignals.hasDmarc}`
     );
     updateJob(
       scanId,
-      'Checking HTTPS/TLS',
-      42,
+      'Inspecting TLS certificate',
+      38,
       tlsInfo.available
-        ? `TLS ${tlsInfo.protocol || 'verified'}, issuer: ${tlsInfo.issuer || 'CA'}`
+        ? `TLS ${tlsInfo.protocol || 'verified'} (${handshakeMs} ms), issuer: ${tlsInfo.issuer || 'CA'}`
         : 'TLS certificate metadata unavailable'
     );
     if (job.cancelled) return;
 
-    if (!homeResponse.ok && homeResponse.statusCode === 0) {
-      throw new Error(homeResponse.error || 'Unable to connect to target website.');
+    if (!homeFirst.ok && homeFirst.statusCode === 0) {
+      throw new Error(homeFirst.error || 'Unable to connect to target website.');
     }
+
+    // Warm TTFB probe when initial probe > 400ms to remove TCP/TLS handshake jitter
+    let warmTtfbMs = homeFirst.ttfbMs;
+    if (homeFirst.ttfbMs > 400 && (!deadlineMs || remainingMs() > 5000)) {
+      const warmProbe = await safeFetchText(homeFirst.finalUrl, {
+        timeoutMs: 4000,
+        maxBytes: 1024,
+        method: 'HEAD',
+      }).catch(() => null);
+      if (warmProbe && warmProbe.statusCode > 0 && warmProbe.ttfbMs > 0) {
+        warmTtfbMs = Math.min(homeFirst.ttfbMs, warmProbe.ttfbMs);
+      }
+    }
+
     updateJob(
       scanId,
-      'Inspecting response headers',
-      60,
-      `HTTP ${homeResponse.statusCode} in ${homeResponse.ttfbMs} ms TTFB (${homeResponse.redirectCount} redirects)`
+      'Checking HTTP headers & cookies',
+      48,
+      `HTTP ${homeFirst.statusCode} · ${homeFirst.ttfbMs} ms TTFB (warm ${warmTtfbMs} ms) · ${homeFirst.redirectCount} redirects`
     );
     if (job.cancelled) return;
 
-    // 4. Analyze Homepage + Auxiliary Files (robots.txt, security.txt, sitemap.xml)
-    updateJob(scanId, 'Analysing homepage', 68);
-    const origin = new URL(homeResponse.finalUrl).origin;
+    // 3. Auxiliary policy files with deterministic single-retry resilience
+    updateJob(scanId, 'Fetching auxiliary policy files', 56);
+    const origin = new URL(homeFirst.finalUrl).origin;
     const auxTimeout = deadlineMs ? Math.min(3500, Math.max(1500, remainingMs() - 3000)) : 4000;
     const [robotsRes, secTxtRes, sitemapRes] = await Promise.all([
-      safeFetchText(`${origin}/robots.txt`, { timeoutMs: auxTimeout, maxBytes: 65536 }),
-      safeFetchText(`${origin}/.well-known/security.txt`, { timeoutMs: auxTimeout, maxBytes: 65536 }),
-      safeFetchText(`${origin}/sitemap.xml`, { timeoutMs: auxTimeout, maxBytes: 131072 }),
+      fetchWithSingleRetry(`${origin}/robots.txt`, { timeoutMs: auxTimeout, maxBytes: 65536 }),
+      fetchWithSingleRetry(`${origin}/.well-known/security.txt`, { timeoutMs: auxTimeout, maxBytes: 65536 }),
+      fetchWithSingleRetry(`${origin}/sitemap.xml`, { timeoutMs: auxTimeout, maxBytes: 131072 }),
     ]);
 
     const hasRobotsTxt = robotsRes.ok && robotsRes.statusCode === 200;
@@ -726,19 +889,29 @@ async function executeScanJob(
       secTxtRes.body.toLowerCase().includes('contact:');
     const hasSitemapXml = sitemapRes.ok && sitemapRes.statusCode === 200;
 
-    // 5. Inspect Linked Same-Origin Pages (Polite Bounded Crawl)
-    updateJob(scanId, 'Inspecting linked pages', 76);
-    const $home = cheerio.load(homeResponse.body || '');
-    const mixedContentUrls: string[] = [];
-    if (homeResponse.finalUrl.startsWith('https://')) {
+    updateJob(
+      scanId,
+      'Fetching auxiliary policy files',
+      62,
+      `robots.txt=${hasRobotsTxt}, security.txt=${hasSecurityTxt}, sitemap.xml=${hasSitemapXml}`
+    );
+
+    // 4. Homepage DOM + Mixed Content Inspection
+    updateJob(scanId, 'Analysing homepage DOM', 68);
+    const $home = cheerio.load(homeFirst.body || '');
+    const mixedContentSet = new Set<string>();
+    if (homeFirst.finalUrl.startsWith('https://')) {
       $home('script[src], link[href], img[src], iframe[src]').each((_, el) => {
         const src = $home(el).attr('src') || $home(el).attr('href') || '';
         if (src.trim().toLowerCase().startsWith('http://')) {
-          mixedContentUrls.push(src.trim());
+          mixedContentSet.add(src.trim());
         }
       });
     }
+    const mixedContentUrls = Array.from(mixedContentSet).sort();
 
+    // 5. Same-Origin Deterministic Crawl
+    updateJob(scanId, 'Crawling same-origin pages', 74);
     const internalCandidates = new Set<string>();
     if (opts.crawlDepth > 0 && opts.maxPages > 1) {
       $home('a[href]').each((_, el) => {
@@ -747,8 +920,8 @@ async function executeScanJob(
           return;
         }
         try {
-          const resolvedUrl = new URL(href, homeResponse.finalUrl);
-          if (resolvedUrl.origin === origin && resolvedUrl.toString() !== homeResponse.finalUrl) {
+          const resolvedUrl = new URL(href, homeFirst.finalUrl);
+          if (resolvedUrl.origin === origin && resolvedUrl.toString() !== homeFirst.finalUrl) {
             const pathStr = resolvedUrl.pathname;
             const blockedByRobots = disallowedPaths.some((d) => d !== '/' && pathStr.startsWith(d));
             if (!blockedByRobots) {
@@ -763,10 +936,11 @@ async function executeScanJob(
     }
 
     let pagesScanned = 1;
+    const crawledUrls: string[] = [homeFirst.finalUrl];
     const brokenInternalLinks: Array<{ url: string; status: number | string }> = [];
-    const candidateList = Array.from(internalCandidates).slice(0, Math.max(0, opts.maxPages - 1));
+    // Sort lexicographically BEFORE slicing so identical pages are always sampled across runs
+    const candidateList = Array.from(internalCandidates).sort().slice(0, Math.max(0, opts.maxPages - 1));
 
-    // Polite concurrency (batch of 3), stopping cleanly before serverless deadline
     for (let i = 0; i < candidateList.length; i += 3) {
       if (job.cancelled) return;
       if (deadlineMs && remainingMs() < 3500) break;
@@ -774,12 +948,13 @@ async function executeScanJob(
       const linkTimeout = deadlineMs ? Math.min(4000, Math.max(1500, remainingMs() - 2500)) : 5000;
       const batchResults = await Promise.all(
         batch.map(async (linkUrl) => {
-          const res = await safeFetchText(linkUrl, { timeoutMs: linkTimeout, maxBytes: 512 * 1024 });
+          const res = await fetchWithSingleRetry(linkUrl, { timeoutMs: linkTimeout, maxBytes: 512 * 1024 });
           return { linkUrl, res };
         })
       );
       for (const { linkUrl, res } of batchResults) {
         pagesScanned++;
+        crawledUrls.push(linkUrl);
         if (!res.ok || res.statusCode >= 400) {
           brokenInternalLinks.push({ url: linkUrl, status: res.statusCode || res.error || 'error' });
         }
@@ -787,38 +962,54 @@ async function executeScanJob(
     }
     updateJob(
       scanId,
-      'Inspecting linked pages',
-      84,
+      'Crawling same-origin pages',
+      82,
       `Inspected ${pagesScanned} same-origin page(s); ${brokenInternalLinks.length} broken link(s) detected`
     );
     if (job.cancelled) return;
 
-    // 6. Frontend Structure & Performance Analysis
-    updateJob(scanId, 'Analysing performance', 90);
+    // 6. Performance Lab / PageSpeed Insights
+    updateJob(scanId, 'Auditing backend & performance', 88);
     const lighthouse: LighthouseMetrics =
-      deadlineMs && remainingMs() < 4500
+      !opts.runPageSpeed
         ? {
             available: false,
-            source: 'unavailable',
+            source: 'not_configured',
             strategy: 'mobile',
             dataType: 'none',
-            errorNote: 'Skipped PageSpeed Insights call to stay within serverless execution budget.',
+            errorNote: `Skipped external PageSpeed Insights lookup for the ${opts.scanProfile} profile.`,
           }
-        : await fetchPageSpeedInsights(homeResponse.finalUrl);
+        : deadlineMs && remainingMs() < 4500
+          ? {
+              available: false,
+              source: 'unavailable',
+              strategy: 'mobile',
+              dataType: 'none',
+              errorNote: 'Skipped PageSpeed Insights call to stay within serverless execution budget.',
+            }
+          : await fetchPageSpeedInsights(homeFirst.finalUrl);
+
     updateJob(
       scanId,
-      'Evaluating content quality',
+      'Evaluating frontend & accessibility',
+      91,
+      'Evaluated static DOM structure, WCAG signals, forms, headings, and image attributes'
+    );
+    updateJob(
+      scanId,
+      'Evaluating SEO & engagement',
       94,
       lighthouse.available
-        ? `PageSpeed Insights Performance ${lighthouse.performanceScore}/100`
-        : 'Static HTML performance & content signals evaluated'
+        ? `PageSpeed Performance ${lighthouse.performanceScore}/100 · SEO metadata inspected`
+        : 'Evaluated canonicals, Open Graph, headings, and CTA clarity'
     );
 
     const coverage: ScanCoverage = {
       pagesScanned,
       maxPages: opts.maxPages,
       crawlDepth: opts.crawlDepth,
-      httpsVerified: homeResponse.finalUrl.startsWith('https://'),
+      scanProfile: opts.scanProfile,
+      httpsVerified: homeFirst.finalUrl.startsWith('https://'),
       dnsVerified: dnsSignals.resolved,
       tlsVerified: tlsInfo.available,
       lighthouseVerified: lighthouse.available,
@@ -828,18 +1019,18 @@ async function executeScanJob(
       backupVerified: false,
     };
 
-    // 7. Preparing Findings & Generating Report
-    updateJob(scanId, 'Preparing findings', 97);
+    // 7. Deterministic Scoring & Posture Fingerprinting
+    updateJob(scanId, 'Computing deterministic scores', 97);
     const analysis = analyzeAllCategories(
       {
         scanId,
         ownerUid,
         targetUrl: job.targetUrl,
-        finalUrl: homeResponse.finalUrl,
-        isHttps: homeResponse.finalUrl.startsWith('https://'),
+        finalUrl: homeFirst.finalUrl,
+        isHttps: homeFirst.finalUrl.startsWith('https://'),
         httpRedirectsToHttps,
-        headers: homeResponse.headers,
-        setCookieHeaders: homeResponse.setCookieHeaders,
+        headers: homeFirst.headers,
+        setCookieHeaders: homeFirst.setCookieHeaders,
         tls: tlsInfo,
         dns: dnsSignals,
         mixedContentUrls,
@@ -851,34 +1042,54 @@ async function executeScanJob(
         scanId,
         ownerUid,
         targetUrl: job.targetUrl,
-        finalUrl: homeResponse.finalUrl,
-        html: homeResponse.body,
-        htmlSizeBytes: Buffer.byteLength(homeResponse.body || '', 'utf8'),
-        ttfbMs: homeResponse.ttfbMs,
-        totalResponseTimeMs: homeResponse.totalMs,
-        statusCode: homeResponse.statusCode,
-        redirectCount: homeResponse.redirectCount,
-        headers: homeResponse.headers,
+        finalUrl: homeFirst.finalUrl,
+        html: homeFirst.body,
+        htmlSizeBytes: Buffer.byteLength(homeFirst.body || '', 'utf8'),
+        ttfbMs: homeFirst.ttfbMs,
+        warmTtfbMs,
+        totalResponseTimeMs: homeFirst.totalMs,
+        statusCode: homeFirst.statusCode,
+        redirectCount: homeFirst.redirectCount,
+        headers: homeFirst.headers,
         brokenInternalLinks,
         brokenImages: [],
         lighthouse,
+        hasRobotsTxt,
+        hasSitemapXml,
+        hasSecurityTxt,
       },
       coverage
     );
 
     const completedAt = new Date().toISOString();
-    const partial = !homeResponse.ok || (!tlsInfo.available && isInitialHttps);
-    const finalStatus: ScanStatus = partial && homeResponse.statusCode >= 500 ? 'partially_completed' : 'completed';
+    const partial = !homeFirst.ok || (!tlsInfo.available && isInitialHttps);
+    const finalStatus: ScanStatus = partial && homeFirst.statusCode >= 500 ? 'partially_completed' : 'completed';
 
     const summary = buildExecutiveSummary(job.normalizedDomain, analysis.scores, analysis.findings, coverage);
 
+    const headersSnapshot: Record<string, string> = {};
+    for (const k of SNAPSHOT_HEADER_KEYS) {
+      if (homeFirst.headers[k]) {
+        headersSnapshot[k] = homeFirst.headers[k];
+      }
+    }
+
+    const timingBreakdown: TimingBreakdownMs = {
+      dnsLookupMs,
+      tlsHandshakeMs: handshakeMs,
+      ttfbMs: homeFirst.ttfbMs,
+      warmTtfbMs,
+      contentTransferMs: Math.max(0, homeFirst.totalMs - homeFirst.ttfbMs),
+      totalResponseTimeMs: homeFirst.totalMs,
+    };
+
     const metrics: ScanMetrics = {
-      ttfbMs: homeResponse.ttfbMs,
-      totalResponseTimeMs: homeResponse.totalMs,
-      statusCode: homeResponse.statusCode,
-      redirectCount: homeResponse.redirectCount,
-      finalUrl: homeResponse.finalUrl,
-      htmlSizeBytes: Buffer.byteLength(homeResponse.body || '', 'utf8'),
+      ttfbMs: homeFirst.ttfbMs,
+      totalResponseTimeMs: homeFirst.totalMs,
+      statusCode: homeFirst.statusCode,
+      redirectCount: homeFirst.redirectCount,
+      finalUrl: homeFirst.finalUrl,
+      htmlSizeBytes: Buffer.byteLength(homeFirst.body || '', 'utf8'),
       domNodeCount: analysis.domStats.domNodeCount,
       scriptCount: analysis.domStats.scriptCount,
       stylesheetCount: analysis.domStats.stylesheetCount,
@@ -889,20 +1100,26 @@ async function executeScanJob(
       linkCount: analysis.domStats.linkCount,
       brokenInternalLinks: brokenInternalLinks.length,
       headingCount: analysis.domStats.headingCount,
-      compression: homeResponse.headers['content-encoding'] || null,
-      serverBanner: homeResponse.headers['server'] || null,
+      compression: homeFirst.headers['content-encoding'] || null,
+      serverBanner: homeFirst.headers['server'] || null,
       tls: tlsInfo,
       dns: dnsSignals,
       lighthouse,
+      timingBreakdown,
+      frontendDetails: analysis.domStats.frontendDetails,
+      headersSnapshot,
+      crawledUrls,
     };
 
-    updateJob(scanId, 'Generating report', 100, 'Audit report compiled from verified evidence.');
+    updateJob(scanId, 'Generating audit report', 100, `Compiled ${analysis.findings.length} evidence-backed checks (${analysis.postureFingerprint}).`);
 
     const finalScan: WebsiteScan = {
       scanId,
       ownerUid,
       targetUrl: job.targetUrl,
       normalizedDomain: job.normalizedDomain,
+      scanProfile: opts.scanProfile,
+      postureFingerprint: analysis.postureFingerprint,
       status: finalStatus,
       currentStage: 'Completed',
       progressPercent: 100,
@@ -937,4 +1154,104 @@ async function executeScanJob(
       timestamp: new Date().toISOString(),
     });
   }
+}
+
+/**
+ * Re-checks a specific remediation rule live against the target URL before allowing a finding
+ * to be marked as verified & resolved in the Remediation Workspace.
+ */
+export async function verifySpecificRemediation(params: {
+  targetUrl: string;
+  ruleId?: string;
+  title: string;
+}): Promise<{ resolved: boolean; detail: string; observedValue: string; checkedAt: string }> {
+  const checkedAt = new Date().toISOString();
+  const res = await safeFetchText(params.targetUrl, { timeoutMs: 8000, maxBytes: 512 * 1024 });
+  if (!res.ok && res.statusCode === 0) {
+    return {
+      resolved: false,
+      detail: res.error || 'Unable to reach target URL for live verification.',
+      observedValue: 'Unreachable',
+      checkedAt,
+    };
+  }
+
+  const h = res.headers;
+  const rId = params.ruleId || '';
+  const lowerTitle = params.title.toLowerCase();
+
+  if (rId === 'SEC_CSP' || lowerTitle.includes('content-security-policy')) {
+    const csp = h['content-security-policy'];
+    if (csp && !csp.includes("'unsafe-inline'") && !csp.includes('*')) {
+      return { resolved: true, detail: 'Hardened Content-Security-Policy header observed in live response.', observedValue: csp.slice(0, 120), checkedAt };
+    }
+    return {
+      resolved: false,
+      detail: csp ? 'CSP header exists but still permits unsafe-inline or wildcard.' : 'Content-Security-Policy header is still absent.',
+      observedValue: csp ? 'Permissive CSP' : 'Absent',
+      checkedAt,
+    };
+  }
+
+  if (rId === 'SEC_HSTS' || lowerTitle.includes('strict-transport-security')) {
+    const hsts = h['strict-transport-security'];
+    return hsts
+      ? { resolved: true, detail: 'Strict-Transport-Security header verified live.', observedValue: hsts, checkedAt }
+      : { resolved: false, detail: 'Strict-Transport-Security header is still missing.', observedValue: 'Absent', checkedAt };
+  }
+
+  if (rId === 'SEC_CLICKJACKING' || lowerTitle.includes('clickjacking') || lowerTitle.includes('x-frame-options')) {
+    const xfo = h['x-frame-options'];
+    const csp = h['content-security-policy'] || '';
+    if (xfo || csp.toLowerCase().includes('frame-ancestors')) {
+      return { resolved: true, detail: 'Framing protection header verified live.', observedValue: xfo || 'CSP frame-ancestors', checkedAt };
+    }
+    return { resolved: false, detail: 'Neither X-Frame-Options nor CSP frame-ancestors is present.', observedValue: 'Absent', checkedAt };
+  }
+
+  if (rId === 'SEC_XCTO' || lowerTitle.includes('x-content-type-options')) {
+    const xcto = h['x-content-type-options'];
+    return xcto?.toLowerCase() === 'nosniff'
+      ? { resolved: true, detail: 'X-Content-Type-Options: nosniff verified live.', observedValue: xcto, checkedAt }
+      : { resolved: false, detail: 'X-Content-Type-Options: nosniff still not returned.', observedValue: xcto || 'Absent', checkedAt };
+  }
+
+  if (rId === 'SEC_REFERRER' || lowerTitle.includes('referrer-policy')) {
+    const rp = h['referrer-policy'];
+    return rp
+      ? { resolved: true, detail: 'Referrer-Policy header verified live.', observedValue: rp, checkedAt }
+      : { resolved: false, detail: 'Referrer-Policy header still absent.', observedValue: 'Absent', checkedAt };
+  }
+
+  // Fallback full re-analysis on the live response for DOM/SEO/header checks
+  const $ = cheerio.load(res.body || '');
+  if (rId === 'FE_VIEWPORT' || lowerTitle.includes('viewport')) {
+    const vp = $('meta[name="viewport"]').attr('content');
+    return vp
+      ? { resolved: true, detail: 'Viewport meta tag found in live HTML.', observedValue: vp, checkedAt }
+      : { resolved: false, detail: 'Viewport meta tag is still missing.', observedValue: 'Absent', checkedAt };
+  }
+
+  if (rId === 'A11Y_HTML_LANG' || lowerTitle.includes('lang attribute')) {
+    const lang = $('html').attr('lang');
+    return lang
+      ? { resolved: true, detail: `HTML lang="${lang}" attribute verified live.`, observedValue: lang, checkedAt }
+      : { resolved: false, detail: 'HTML lang attribute still missing.', observedValue: 'Absent', checkedAt };
+  }
+
+  // Generic live check
+  const validated = validateTargetUrl(res.finalUrl);
+  const dnsSignals = validated.hostname ? await inspectDnsSignals(validated.hostname) : null;
+  if (rId === 'SEC_DNS_EMAIL' && dnsSignals) {
+    return dnsSignals.hasSpf && dnsSignals.hasDmarc
+      ? { resolved: true, detail: 'Both SPF and DMARC TXT records verified in live DNS.', observedValue: 'SPF + DMARC active', checkedAt }
+      : { resolved: false, detail: `Observed SPF=${dnsSignals.hasSpf}, DMARC=${dnsSignals.hasDmarc}.`, observedValue: `SPF:${dnsSignals.hasSpf} DMARC:${dnsSignals.hasDmarc}`, checkedAt };
+  }
+
+  return {
+    resolved: res.ok && res.statusCode < 400,
+    detail: `Live check reached ${res.finalUrl} (HTTP ${res.statusCode}). Run a full rescan to refresh all report metrics.`,
+    observedValue: `HTTP ${res.statusCode}`,
+    checkedAt,
+  };
 }

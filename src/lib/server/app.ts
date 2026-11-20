@@ -5,19 +5,22 @@ import { z } from 'zod';
 import { extractEndpointsFromOpenApi, runApiAudit } from '../scanner/apiAudit';
 import {
   cancelJob,
+  findInFlightJob,
   getJobState,
   inspectTlsCertificate,
   runScanJobAndWait,
   safeFetchText,
   startScanJob,
+  verifySpecificRemediation,
 } from '../scanner/engine';
 import { generateVerificationChallenge, verifyDomainOwnership } from '../scanner/ownership';
 import { resolveAndVerifyHost, validateTargetUrl } from '../scanner/ssrf';
 import { verifyRequestAuth } from './auth';
-import { explainScanFindingsWithGemini, isGeminiConfigured } from './gemini';
+import { askAiAboutScanWithGemini, explainScanFindingsWithGemini, isGeminiConfigured } from './gemini';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const isVercelRuntime = Boolean(process.env.VERCEL);
+const ADMIN_EMAIL = 'adityaair1.2029@gmail.com';
 
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
 
@@ -40,6 +43,9 @@ const StartScanSchema = z.object({
   authorizedConfirmed: z.literal(true, {
     error: 'You must confirm that you own the website or have permission to assess it.',
   }),
+  scanProfile: z
+    .enum(['quick', 'standard', 'comprehensive', 'verified_owner', 'performance', 'frontend_quality'])
+    .optional(),
   maxPages: z.number().int().min(1).max(20).optional(),
   crawlDepth: z.number().int().min(0).max(2).optional(),
   isDomainVerified: z.boolean().optional(),
@@ -67,6 +73,12 @@ const MonitoringCheckSchema = z.object({
   targetUrl: z.string().min(4).max(2048),
 });
 
+const RemediationVerifySchema = z.object({
+  targetUrl: z.string().min(4).max(2048),
+  ruleId: z.string().max(80).optional(),
+  title: z.string().min(2).max(240),
+});
+
 const AiExplainSchema = z.object({
   audience: z.enum(['owner', 'developer']),
   scan: z.object({
@@ -75,7 +87,19 @@ const AiExplainSchema = z.object({
     scores: z.any(),
     coverage: z.any(),
     metrics: z.any(),
-    findings: z.array(z.any()).max(100),
+    findings: z.array(z.any()).max(120),
+  }),
+});
+
+const AiAskSchema = z.object({
+  question: z.string().min(3).max(600),
+  scan: z.object({
+    normalizedDomain: z.string().max(255),
+    targetUrl: z.string().max(2048),
+    scores: z.any(),
+    coverage: z.any(),
+    metrics: z.any(),
+    findings: z.array(z.any()).max(120),
   }),
 });
 
@@ -101,6 +125,7 @@ export function createApiApp() {
     res.json({
       ok: true,
       service: 'OriginSec',
+      version: '2.0.0',
       runtime: isVercelRuntime ? 'serverless' : 'node',
       timestamp: new Date().toISOString(),
     });
@@ -113,6 +138,8 @@ export function createApiApp() {
       fs.existsSync(path.resolve(process.cwd(), 'firebase-applet-config.json'));
     const hasPageSpeed = Boolean(process.env.PAGESPEED_API_KEY && process.env.PAGESPEED_API_KEY.trim().length > 5);
     const hasGemini = isGeminiConfigured();
+    const hasCronSecret = Boolean(process.env.CRON_SECRET && process.env.CRON_SECRET.trim().length >= 8);
+    const hasEmailProvider = Boolean(process.env.RESEND_API_KEY || process.env.SMTP_HOST);
 
     res.json({
       authenticated: Boolean(user),
@@ -127,15 +154,79 @@ export function createApiApp() {
           connected: hasGemini,
           label: hasGemini ? 'Server-side Gemini API active' : 'Not configured (GEMINI_API_KEY optional)',
         },
+        scheduled_cron: {
+          connected: hasCronSecret,
+          label: hasCronSecret ? 'CRON_SECRET configured' : 'Requires CRON_SECRET for unattended Vercel Cron',
+        },
+        email_alerts: {
+          connected: hasEmailProvider,
+          label: hasEmailProvider ? 'Email transport configured' : 'Requires RESEND_API_KEY or SMTP configuration',
+        },
       },
     });
+  });
+
+  // Protected Admin Overview (strictly restricted to verified founder email)
+  app.get('/api/admin/overview', async (req, res) => {
+    const user = await verifyRequestAuth(req);
+    if (!user || !user.emailVerified || user.email?.toLowerCase() !== ADMIN_EMAIL) {
+      res.status(403).json({ error: 'Forbidden: Admin access requires verified founder credentials.' });
+      return;
+    }
+
+    res.json({
+      service: 'OriginSec 2.0',
+      adminEmail: user.email,
+      runtime: isVercelRuntime ? 'vercel-serverless' : 'node-express',
+      nodeVersion: process.version,
+      uptimeSeconds: Math.round(process.uptime()),
+      capabilities: {
+        geminiConfigured: isGeminiConfigured(),
+        pageSpeedConfigured: Boolean(process.env.PAGESPEED_API_KEY),
+        cronSecretConfigured: Boolean(process.env.CRON_SECRET),
+        emailProviderConfigured: Boolean(process.env.RESEND_API_KEY || process.env.SMTP_HOST),
+      },
+      checkedAt: new Date().toISOString(),
+    });
+  });
+
+  // Vercel Cron / Scheduled Monitoring Webhook (protected by CRON_SECRET)
+  app.post('/api/cron/monitoring', async (req, res) => {
+    const cronSecret = process.env.CRON_SECRET;
+    const authHeader = req.headers.authorization || '';
+    const xCron = req.headers['x-cron-secret'];
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : String(xCron || '');
+
+    if (!cronSecret || token !== cronSecret) {
+      res.status(401).json({ error: 'Unauthorized cron trigger.' });
+      return;
+    }
+
+    const targets = Array.isArray(req.body?.targets) ? req.body.targets.slice(0, 10) : [];
+    const results: Array<{ targetUrl: string; status: string; httpStatus: number | null; responseTimeMs: number }> = [];
+    for (const rawUrl of targets) {
+      if (typeof rawUrl !== 'string') continue;
+      const validated = validateTargetUrl(rawUrl);
+      if (!validated.valid || !validated.normalizedUrl || !validated.hostname) continue;
+      const resolved = await resolveAndVerifyHost(validated.hostname);
+      if (!resolved.safe) continue;
+      const r = await safeFetchText(validated.normalizedUrl, { timeoutMs: 6000, maxBytes: 16384, method: 'HEAD' });
+      results.push({
+        targetUrl: validated.normalizedUrl,
+        status: !r.ok || r.statusCode >= 500 || r.statusCode === 0 ? 'down' : r.statusCode >= 400 ? 'degraded' : 'up',
+        httpStatus: r.statusCode || null,
+        responseTimeMs: r.ttfbMs,
+      });
+    }
+
+    res.json({ ok: true, checkedCount: results.length, results, timestamp: new Date().toISOString() });
   });
 
   // Start Website Scan (automatically awaits completion on serverless runtimes like Vercel)
   app.post('/api/scans', async (req, res) => {
     const user = await verifyRequestAuth(req);
     const rateKey = `scan:${user?.uid || req.ip || 'anon'}`;
-    if (!checkRateLimit(rateKey, user ? 25 : 10, 10 * 60 * 1000)) {
+    if (!checkRateLimit(rateKey, user ? 30 : 12, 10 * 60 * 1000)) {
       res.status(429).json({ error: 'Scan rate limit reached. Please wait a few minutes before starting another scan.' });
       return;
     }
@@ -159,8 +250,9 @@ export function createApiApp() {
       const completedJob = await runScanJobAndWait({
         ownerUid,
         targetUrl: validated.normalizedUrl,
-        maxPages: Math.min(8, parsed.data.maxPages ?? 8),
-        crawlDepth: parsed.data.crawlDepth ?? 1,
+        scanProfile: parsed.data.scanProfile,
+        maxPages: parsed.data.maxPages !== undefined ? Math.min(8, parsed.data.maxPages) : undefined,
+        crawlDepth: parsed.data.crawlDepth,
         isDomainVerified: parsed.data.isDomainVerified,
         serverlessBudgetMs: 18000,
       });
@@ -191,9 +283,25 @@ export function createApiApp() {
       return;
     }
 
+    // Idempotency guard for duplicate clicks on async Node scans
+    const existingInFlight = findInFlightJob(ownerUid, validated.normalizedUrl);
+    if (existingInFlight) {
+      res.status(202).json({
+        scanId: existingInFlight.scanId,
+        status: existingInFlight.status,
+        currentStage: existingInFlight.currentStage,
+        progressPercent: existingInFlight.progressPercent,
+        targetUrl: existingInFlight.targetUrl,
+        normalizedDomain: existingInFlight.normalizedDomain,
+        deduplicated: true,
+      });
+      return;
+    }
+
     const job = startScanJob({
       ownerUid,
       targetUrl: validated.normalizedUrl,
+      scanProfile: parsed.data.scanProfile,
       maxPages: parsed.data.maxPages,
       crawlDepth: parsed.data.crawlDepth,
       isDomainVerified: parsed.data.isDomainVerified,
@@ -249,6 +357,23 @@ export function createApiApp() {
 
     const cancelled = cancelJob(req.params.scanId, callerUid);
     res.json({ cancelled, status: job.status });
+  });
+
+  app.post('/api/remediation/verify', async (req, res) => {
+    const user = await verifyRequestAuth(req);
+    if (!user) {
+      res.status(401).json({ error: 'Sign in with Google to run live remediation verification.' });
+      return;
+    }
+
+    const parsed = RemediationVerifySchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Invalid remediation verification payload.' });
+      return;
+    }
+
+    const result = await verifySpecificRemediation(parsed.data);
+    res.json(result);
   });
 
   app.post('/api/ownership/challenge', async (req, res) => {
@@ -415,6 +540,37 @@ export function createApiApp() {
     }
 
     res.json({ explanation: result.explanation, generatedAt: new Date().toISOString() });
+  });
+
+  app.post('/api/ai/ask', async (req, res) => {
+    const user = await verifyRequestAuth(req);
+    const rateKey = `ai:${user?.uid || req.ip || 'anon'}`;
+    if (!checkRateLimit(rateKey, 20, 10 * 60 * 1000)) {
+      res.status(429).json({ error: 'AI Q&A rate limit reached. Please wait briefly.' });
+      return;
+    }
+
+    const parsed = AiAskSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Please enter a valid question (3-600 characters).' });
+      return;
+    }
+
+    const result = await askAiAboutScanWithGemini({
+      scan: parsed.data.scan,
+      question: parsed.data.question,
+    });
+
+    if (!result.available) {
+      res.status(503).json({ error: result.error });
+      return;
+    }
+    if (result.error) {
+      res.status(502).json({ error: result.error });
+      return;
+    }
+
+    res.json({ answer: result.answer, answeredAt: new Date().toISOString() });
   });
 
   return app;

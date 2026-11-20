@@ -1,22 +1,31 @@
 import React, { useState } from 'react';
-import { Menu, X, LogOut, User as UserIcon } from 'lucide-react';
-import type { ThemeMode } from '../types/audit';
+import { Bell, LogOut, Menu, Search, Shield, User as UserIcon, X } from 'lucide-react';
 import type { User } from 'firebase/auth';
+import type { ThemeMode } from '../types/audit';
 
 export type AppRoute =
   | 'home'
   | 'dashboard'
+  | 'websites'
   | 'scan'
   | 'history'
   | 'security-reports'
+  | 'frontend-intel'
   | 'api-audits'
+  | 'backend-assessment'
   | 'database-audits'
+  | 'seo-quality'
+  | 'performance-lab'
+  | 'accessibility'
   | 'infrastructure'
   | 'backups'
   | 'monitoring'
   | 'integrations'
+  | 'remediation'
+  | 'notifications'
   | 'settings'
   | 'about'
+  | 'admin'
   | 'report';
 
 interface HeaderProps {
@@ -29,6 +38,8 @@ interface HeaderProps {
   onNavigate: (route: AppRoute) => void;
   authLoading?: boolean;
   authReady?: boolean;
+  unreadNotificationsCount?: number;
+  onOpenSearch?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -41,15 +52,17 @@ export const Header: React.FC<HeaderProps> = ({
   onNavigate,
   authLoading,
   authReady = true,
+  unreadNotificationsCount = 0,
+  onOpenSearch,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const navItems: Array<{ route: AppRoute; label: string; requireAuth?: boolean }> = user
+  const navItems: Array<{ route: AppRoute; label: string }> = user
     ? [
-        { route: 'dashboard', label: 'Dashboard' },
+        { route: 'dashboard', label: 'Workspace' },
+        { route: 'websites', label: 'Websites' },
         { route: 'history', label: 'Scan history' },
-        { route: 'integrations', label: 'Integrations' },
-        { route: 'settings', label: 'Profile' },
+        { route: 'remediation', label: 'Remediation' },
       ]
     : [
         { route: 'history', label: 'Scan history' },
@@ -81,7 +94,7 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
 
         {/* Zone 2: Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-8" aria-label="Primary Navigation">
+        <nav className="hidden md:flex items-center gap-7" aria-label="Primary Navigation">
           {navItems.map((item) => {
             const isActive = activeRoute === item.route;
             return (
@@ -101,14 +114,54 @@ export const Header: React.FC<HeaderProps> = ({
           })}
         </nav>
 
-        {/* Zone 3: Actions & Theme Toggle */}
-        <div className="flex items-center gap-3 shrink-0">
+        {/* Zone 3: Search, Notifications, Auth & Theme Toggle */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          {onOpenSearch && (
+            <button
+              type="button"
+              onClick={onOpenSearch}
+              aria-label="Search scans, websites and findings"
+              title="Universal Search (Ctrl+K)"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] text-[#777267] dark:text-[#929292] hover:text-[#151515] dark:hover:text-white transition-colors cursor-pointer"
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span className="hidden lg:inline">Search</span>
+            </button>
+          )}
+
           {user ? (
-            <div className="hidden sm:flex items-center gap-2.5">
+            <div className="hidden sm:flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleNav('notifications')}
+                aria-label="Notifications"
+                title="Notification Centre"
+                className="relative p-2 rounded-full border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] text-[#777267] dark:text-[#929292] hover:text-[#151515] dark:hover:text-white cursor-pointer"
+              >
+                <Bell className="w-4 h-4" />
+                {unreadNotificationsCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 rounded-full bg-[#008C55] dark:bg-[#00E69A] text-white dark:text-[#050505] text-[10px] font-bold flex items-center justify-center tabular-nums">
+                    {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+                  </span>
+                )}
+              </button>
+
+              {user.email?.toLowerCase() === 'adityaair1.2029@gmail.com' && (
+                <button
+                  type="button"
+                  onClick={() => handleNav('admin')}
+                  aria-label="Admin Overview"
+                  title="Founder Admin Overview"
+                  className="p-2 rounded-full border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] text-[#008C55] dark:text-[#00E69A] hover:border-[#008C55] cursor-pointer"
+                >
+                  <Shield className="w-4 h-4" />
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => handleNav('settings')}
-                className="inline-flex items-center gap-2 text-sm font-medium text-[#151515] dark:text-white hover:opacity-80 cursor-pointer transition-opacity"
+                className="inline-flex items-center gap-2 text-sm font-medium text-[#151515] dark:text-white hover:opacity-80 cursor-pointer transition-opacity pl-1"
                 title={user.email || 'Account'}
               >
                 {user.photoURL ? (
@@ -123,7 +176,7 @@ export const Header: React.FC<HeaderProps> = ({
                     <UserIcon className="w-4 h-4" />
                   </span>
                 )}
-                <span className="hidden lg:inline max-w-[130px] truncate">{user.displayName?.split(' ')[0] || 'Account'}</span>
+                <span className="hidden xl:inline max-w-[120px] truncate">{user.displayName?.split(' ')[0] || 'Account'}</span>
               </button>
               <button
                 type="button"
@@ -153,7 +206,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={onToggleTheme}
-            className="px-5 py-2.5 rounded-full text-xs font-semibold tracking-wider uppercase border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] text-[#151515] dark:text-white hover:border-[#929292] dark:hover:border-[#555] transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer"
+            className="px-4 sm:px-5 py-2.5 rounded-full text-xs font-semibold tracking-wider uppercase border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] text-[#151515] dark:text-white hover:border-[#929292] dark:hover:border-[#555] transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer"
           >
             {theme === 'dark' ? 'LIGHT MODE' : 'DARK MODE'}
           </button>
@@ -172,6 +225,19 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Mobile Navigation Drawer */}
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-[#E7E0D3] dark:border-[#1E1E1E] bg-[#F7F5EF] dark:bg-[#050505] px-4 py-4 space-y-2">
+          {onOpenSearch && (
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                onOpenSearch();
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium border border-[#E7E0D3] dark:border-[#252525] text-[#777267] dark:text-[#929292]"
+            >
+              <Search className="w-4 h-4" />
+              Search scans &amp; findings
+            </button>
+          )}
           {navItems.map((item) => (
             <button
               key={item.route}
@@ -186,6 +252,15 @@ export const Header: React.FC<HeaderProps> = ({
               {item.label}
             </button>
           ))}
+          {user && (
+            <button
+              type="button"
+              onClick={() => handleNav('notifications')}
+              className="block w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium text-[#777267] dark:text-[#929292]"
+            >
+              Notifications {unreadNotificationsCount > 0 ? `(${unreadNotificationsCount})` : ''}
+            </button>
+          )}
           {!user ? (
             authReady ? (
               <button
