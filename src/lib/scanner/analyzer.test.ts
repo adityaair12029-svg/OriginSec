@@ -1,11 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import http from 'node:http';
 import {
   analyzeAllCategories,
   buildExecutiveSummary,
   calculateCategoryScores,
   redactCookieHeader,
 } from './analyzer';
+import { runScanJobAndWait } from './engine';
+import { createApiApp } from '../server/app';
 import type { ScanCoverage } from '../../types/audit';
 
 test('redactCookieHeader strips secret values and inspects flags', () => {
@@ -118,4 +121,39 @@ test('analyzeAllCategories computes deterministic findings and never assigns pas
   const emptyScores = calculateCategoryScores([]);
   assert.equal(emptyScores.security, null);
   assert.equal(emptyScores.overall, null);
+});
+
+test('runScanJobAndWait rejects private IP targets cleanly via SSRF policy', async () => {
+  const job = await runScanJobAndWait({
+    ownerUid: 'guest_test',
+    targetUrl: 'http://127.0.0.1/',
+    serverlessBudgetMs: 4000,
+  });
+  assert.equal(job.status, 'failed');
+  assert.ok(job.error && job.error.length > 0);
+});
+
+test('createApiApp /api/scans with sync:true rejects SSRF target with 400 JSON and sets COOP popup header', async () => {
+  const app = createApiApp();
+  const server = http.createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  assert.ok(address && typeof address === 'object');
+  try {
+    const res = await fetch(`http://127.0.0.1:${address.port}/api/scans`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        targetUrl: 'http://127.0.0.1/',
+        authorizedConfirmed: true,
+        sync: true,
+      }),
+    });
+    assert.equal(res.status, 400);
+    assert.equal(res.headers.get('cross-origin-opener-policy'), 'same-origin-allow-popups');
+    const json = (await res.json()) as { error?: string };
+    assert.ok(typeof json.error === 'string' && json.error.length > 0);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
 });

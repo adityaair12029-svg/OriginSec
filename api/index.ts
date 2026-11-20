@@ -1,5 +1,5 @@
-import { createApp } from '../server';
+import { createApiApp } from '../src/lib/server/app';
 
-const app = createApp();
+const app = createApiApp();
 
 export default app;

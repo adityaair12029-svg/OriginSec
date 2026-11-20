@@ -5,7 +5,6 @@ import {
   getDoc,
   getDocs,
   onSnapshot,
-  orderBy,
   query,
   serverTimestamp,
   setDoc,
@@ -16,7 +15,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
-import { auth, db, handleFirestoreError, isFirebaseConfigured, OperationType } from './client';
+import { auth, db, handleFirestoreError, isFirebaseConfigured, logFirestoreError, OperationType } from './client';
 import type {
   BackupStatusRecord,
   IntegrationRecord,
@@ -195,7 +194,7 @@ export function subscribeUserScans(
   onData: (scans: WebsiteScan[]) => void
 ): Unsubscribe {
   const path = 'scans';
-  const q = query(collection(db, path), where('ownerUid', '==', ownerUid), orderBy('startedAt', 'desc'));
+  const q = query(collection(db, path), where('ownerUid', '==', ownerUid));
   return onSnapshot(
     q,
     (snapshot) => {
@@ -222,10 +221,11 @@ export function subscribeUserScans(
           updatedAt: toIsoString(data.updatedAt),
         };
       });
+      items.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
       onData(items);
     },
     (error) => {
-      handleFirestoreError(error, OperationType.LIST, path);
+      logFirestoreError(error, OperationType.LIST, path);
     }
   );
 }
@@ -320,7 +320,9 @@ export function subscribeVerifiedDomains(ownerUid: string, onData: (domains: Ver
         })
       );
     },
-    (err) => handleFirestoreError(err, OperationType.LIST, path)
+    (err) => {
+      logFirestoreError(err, OperationType.LIST, path);
+    }
   );
 }
 
@@ -387,7 +389,9 @@ export function subscribeMonitoringTargets(ownerUid: string, onData: (targets: M
         })
       );
     },
-    (err) => handleFirestoreError(err, OperationType.LIST, path)
+    (err) => {
+      logFirestoreError(err, OperationType.LIST, path);
+    }
   );
 }
 
@@ -413,7 +417,9 @@ export function subscribeMonitoringEvents(ownerUid: string, onData: (events: Mon
       items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       onData(items.slice(0, 50));
     },
-    (err) => handleFirestoreError(err, OperationType.LIST, path)
+    (err) => {
+      logFirestoreError(err, OperationType.LIST, path);
+    }
   );
 }
 
@@ -533,7 +539,9 @@ export function subscribeIntegrations(ownerUid: string, onData: (items: Integrat
         })
       );
     },
-    (err) => handleFirestoreError(err, OperationType.LIST, path)
+    (err) => {
+      logFirestoreError(err, OperationType.LIST, path);
+    }
   );
 }
 
@@ -612,6 +620,8 @@ export function subscribeBackupStatus(ownerUid: string, onData: (items: BackupSt
         })
       );
     },
-    (err) => handleFirestoreError(err, OperationType.LIST, path)
+    (err) => {
+      logFirestoreError(err, OperationType.LIST, path);
+    }
   );
 }

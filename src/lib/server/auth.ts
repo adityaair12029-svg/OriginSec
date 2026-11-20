@@ -2,6 +2,7 @@ import { getApp, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { Request } from 'express';
 
 let projectIdCache: string | null = null;
@@ -9,27 +10,32 @@ let projectIdCache: string | null = null;
 function getFirebaseProjectId(): string | null {
   if (projectIdCache) return projectIdCache;
 
-  if (process.env.FIREBASE_PROJECT_ID) {
-    projectIdCache = process.env.FIREBASE_PROJECT_ID;
+  const envId =
+    process.env.FIREBASE_PROJECT_ID ||
+    process.env.VITE_FIREBASE_PROJECT_ID ||
+    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+  if (envId && envId !== 'remixed-project-id') {
+    projectIdCache = envId;
     return projectIdCache;
   }
 
-  try {
-    const cfgPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
-    if (fs.existsSync(cfgPath)) {
-      const parsed = JSON.parse(fs.readFileSync(cfgPath, 'utf8')) as { projectId?: string };
-      if (parsed.projectId && parsed.projectId !== 'remixed-project-id') {
-        projectIdCache = parsed.projectId;
-        return projectIdCache;
+  const candidatePaths = [
+    path.resolve(process.cwd(), 'firebase-applet-config.json'),
+    path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../firebase-applet-config.json'),
+  ];
+
+  for (const cfgPath of candidatePaths) {
+    try {
+      if (fs.existsSync(cfgPath)) {
+        const parsed = JSON.parse(fs.readFileSync(cfgPath, 'utf8')) as { projectId?: string };
+        if (parsed.projectId && parsed.projectId !== 'remixed-project-id') {
+          projectIdCache = parsed.projectId;
+          return projectIdCache;
+        }
       }
+    } catch {
+      // Try next candidate
     }
-  } catch {
-    // Ignore file read errors
-  }
-
-  if (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID) {
-    projectIdCache = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-    return projectIdCache;
   }
 
   return null;

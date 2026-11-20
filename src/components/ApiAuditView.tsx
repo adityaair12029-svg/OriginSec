@@ -16,6 +16,16 @@ interface ApiAuditViewProps {
   onSignIn: () => void;
 }
 
+async function parseApiJson(res: Response): Promise<Record<string, any> | null> {
+  const text = await res.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text) as Record<string, any>;
+  } catch {
+    return null;
+  }
+}
+
 export const ApiAuditView: React.FC<ApiAuditViewProps> = ({
   isAuthenticated,
   getAuthToken,
@@ -51,28 +61,32 @@ export const ApiAuditView: React.FC<ApiAuditViewProps> = ({
       onSignIn();
       return;
     }
-    const token = await getAuthToken();
-    const res = await fetch('/api/ownership/challenge', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ domain: verifyDomainInput }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setVerifyStatusMsg(data.error || 'Could not generate verification challenge.');
-      return;
+    try {
+      const token = await getAuthToken();
+      const res = await fetch('/api/ownership/challenge', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ domain: verifyDomainInput }),
+      });
+      const data = await parseApiJson(res);
+      if (!res.ok || !data) {
+        setVerifyStatusMsg(data?.error || `Could not generate verification challenge (HTTP ${res.status}).`);
+        return;
+      }
+      setChallengeData(data as typeof challengeData);
+      await onSaveVerifiedDomain({
+        domainId: `dom_${data.normalizedDomain.replace(/[^a-zA-Z0-9]/g, '_')}`,
+        domain: data.normalizedDomain,
+        method: verifyMethod,
+        challengeToken: data.challengeToken,
+        verified: false,
+      });
+    } catch (err) {
+      setVerifyStatusMsg(err instanceof Error ? err.message : 'Network error generating challenge.');
     }
-    setChallengeData(data);
-    await onSaveVerifiedDomain({
-      domainId: `dom_${data.normalizedDomain.replace(/[^a-zA-Z0-9]/g, '_')}`,
-      domain: data.normalizedDomain,
-      method: verifyMethod,
-      challengeToken: data.challengeToken,
-      verified: false,
-    });
   };
 
   const handleVerifyNow = async () => {
@@ -93,9 +107,13 @@ export const ApiAuditView: React.FC<ApiAuditViewProps> = ({
           challengeToken: challengeData.challengeToken,
         }),
       });
-      const data = await res.json();
-      setVerifyStatusMsg(data.evidence || 'Verification check completed.');
-      if (data.verified) {
+      const data = await parseApiJson(res);
+      if (!data) {
+        setVerifyStatusMsg(`Verification service returned HTTP ${res.status}.`);
+        return;
+      }
+      setVerifyStatusMsg(data.evidence || data.error || 'Verification check completed.');
+      if (res.ok && data.verified) {
         await onSaveVerifiedDomain({
           domainId: `dom_${challengeData.normalizedDomain.replace(/[^a-zA-Z0-9]/g, '_')}`,
           domain: challengeData.normalizedDomain,
@@ -104,6 +122,8 @@ export const ApiAuditView: React.FC<ApiAuditViewProps> = ({
           verified: true,
         });
       }
+    } catch (err) {
+      setVerifyStatusMsg(err instanceof Error ? err.message : 'Network error verifying ownership.');
     } finally {
       setVerifying(false);
     }
@@ -139,9 +159,9 @@ export const ApiAuditView: React.FC<ApiAuditViewProps> = ({
           openApiSpecText: mode === 'verified_owner' && openApiText.trim() ? openApiText.trim() : undefined,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || 'API audit failed.');
+      const data = await parseApiJson(res);
+      if (!res.ok || !data) {
+        setError(data?.error || `API audit failed (HTTP ${res.status}).`);
         return;
       }
       setResults(data.results || []);

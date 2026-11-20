@@ -28,6 +28,7 @@ interface HeaderProps {
   activeRoute: AppRoute;
   onNavigate: (route: AppRoute) => void;
   authLoading?: boolean;
+  authReady?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -39,6 +40,7 @@ export const Header: React.FC<HeaderProps> = ({
   activeRoute,
   onNavigate,
   authLoading,
+  authReady = true,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -133,6 +135,10 @@ export const Header: React.FC<HeaderProps> = ({
                 <LogOut className="w-4 h-4" />
               </button>
             </div>
+          ) : !authReady ? (
+            <span className="hidden sm:inline-flex items-center px-3 py-2 text-[12px] font-medium text-[#777267] dark:text-[#929292] whitespace-nowrap shrink-0">
+              Checking session...
+            </span>
           ) : (
             <button
               type="button"
@@ -181,16 +187,18 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           ))}
           {!user ? (
-            <button
-              type="button"
-              onClick={() => {
-                setMobileMenuOpen(false);
-                onSignIn();
-              }}
-              className="w-full mt-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-[#151515] text-white dark:bg-white dark:text-[#050505]"
-            >
-              Sign in with Google
-            </button>
+            authReady ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onSignIn();
+                }}
+                className="w-full mt-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-[#151515] text-white dark:bg-white dark:text-[#050505]"
+              >
+                Sign in with Google
+              </button>
+            ) : null
           ) : (
             <button
               type="button"

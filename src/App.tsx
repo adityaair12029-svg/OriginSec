@@ -22,7 +22,13 @@ import {
   toggleMonitoringTarget,
   updateUserPreferences,
 } from './lib/firebase/firestoreService';
-import { auth, isFirebaseConfigured, signInWithGoogle, signOutUser } from './lib/firebase/client';
+import {
+  auth,
+  completeRedirectSignIn,
+  isFirebaseConfigured,
+  signInWithGoogle,
+  signOutUser,
+} from './lib/firebase/client';
 import type {
   BackupStatusRecord,
   IntegrationRecord,
@@ -63,6 +69,16 @@ function getInitialTheme(): ThemeMode {
     // Ignore storage access errors
   }
   return 'dark';
+}
+
+async function parseJsonSafe<T = Record<string, any>>(res: Response): Promise<{ data: T | null; rawText: string }> {
+  const rawText = await res.text();
+  if (!rawText) return { data: null, rawText: '' };
+  try {
+    return { data: JSON.parse(rawText) as T, rawText };
+  } catch {
+    return { data: null, rawText };
+  }
 }
 
 export default function App() {
@@ -116,12 +132,16 @@ export default function App() {
     });
   }, [user]);
 
-  // Firebase Auth listener
+  // Firebase Auth listener + redirect sign-in completion
   useEffect(() => {
     if (!isFirebaseConfigured || !auth) {
       setAuthReady(true);
       return;
     }
+
+    void completeRedirectSignIn().catch((err) => {
+      setAuthNotice(err instanceof Error ? err.message : 'Google Sign-In failed.');
+    });
 
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
@@ -173,9 +193,10 @@ export default function App() {
   }, []);
 
   const getAuthToken = useCallback(async (): Promise<string | null> => {
-    if (!user) return null;
+    const activeUser = user || auth?.currentUser;
+    if (!activeUser) return null;
     try {
-      return await user.getIdToken();
+      return await activeUser.getIdToken();
     } catch {
       return null;
     }
@@ -224,14 +245,63 @@ export default function App() {
     setAiError(null);
     setIsSubmittingScan(true);
 
+    let targetHostname = '';
+    try {
+      const normalizedAttempt = /^https?:\/\//i.test(params.targetUrl.trim())
+        ? params.targetUrl.trim()
+        : `https://${params.targetUrl.trim()}`;
+      targetHostname = new URL(normalizedAttempt).hostname.toLowerCase();
+    } catch {
+      targetHostname = '';
+    }
+
+    const isVercelClient =
+      typeof window !== 'undefined' && window.location.hostname.endsWith('.vercel.app');
+
+    let syncTicker: number | null = null;
+    const clearSyncTicker = () => {
+      if (syncTicker) {
+        window.clearInterval(syncTicker);
+        syncTicker = null;
+      }
+    };
+
+    if (isVercelClient) {
+      const stages = [
+        { stage: 'Validating target', progress: 12 },
+        { stage: 'Checking DNS', progress: 26 },
+        { stage: 'Checking HTTPS/TLS', progress: 44 },
+        { stage: 'Inspecting response headers', progress: 62 },
+        { stage: 'Analysing homepage', progress: 78 },
+        { stage: 'Generating report', progress: 90 },
+      ];
+      let idx = 0;
+      setActiveProgress({
+        scanId: 'pending',
+        targetUrl: params.targetUrl,
+        normalizedDomain: targetHostname || params.targetUrl,
+        status: 'running',
+        currentStage: stages[0].stage,
+        progressPercent: stages[0].progress,
+        stagesLog: [],
+      });
+      setRoute('scan');
+      syncTicker = window.setInterval(() => {
+        idx = Math.min(stages.length - 1, idx + 1);
+        setActiveProgress((prev) =>
+          prev
+            ? {
+                ...prev,
+                currentStage: stages[idx].stage,
+                progressPercent: stages[idx].progress,
+              }
+            : prev
+        );
+      }, 1100);
+    }
+
     try {
       const token = await getAuthToken();
-      let targetHostname = '';
-      try {
-        targetHostname = new URL(params.targetUrl).hostname.toLowerCase();
-      } catch {
-        targetHostname = '';
-      }
       const isDomainVerified = verifiedDomains.some((d) => d.verified && d.domain === targetHostname);
 
       const res = await fetch('/api/scans', {
@@ -246,12 +316,53 @@ export default function App() {
           maxPages: params.maxPages || profile?.defaultCrawlLimit || 8,
           crawlDepth: params.crawlDepth ?? profile?.defaultCrawlDepth ?? 1,
           isDomainVerified,
+          ...(isVercelClient ? { sync: true } : {}),
         }),
       });
 
-      const data = await res.json();
+      clearSyncTicker();
+      const { data, rawText } = await parseJsonSafe<any>(res);
       if (!res.ok) {
-        setScanSubmitError(data.error || 'Could not start website scan.');
+        const errMsg =
+          data?.error ||
+          (res.status === 504
+            ? 'The target website took too long to respond on serverless timeout. Try scanning again.'
+            : rawText && !rawText.trim().startsWith('<')
+              ? rawText.slice(0, 200)
+              : `Could not complete website scan (HTTP ${res.status}).`);
+        setScanSubmitError(errMsg);
+        setActiveProgress(null);
+        setRoute('home');
+        setIsSubmittingScan(false);
+        return;
+      }
+
+      if (!data) {
+        setScanSubmitError('Server returned an empty or unexpected response. Please try again.');
+        setActiveProgress(null);
+        setRoute('home');
+        setIsSubmittingScan(false);
+        return;
+      }
+
+      const activeUser = user || auth?.currentUser;
+
+      // Synchronous completion path (Vercel Serverless or ?sync=true)
+      if ((data.status === 'completed' || data.status === 'partially_completed') && data.result) {
+        const finalReport: WebsiteScan = data.result;
+        if (activeUser) {
+          try {
+            await saveScanToFirestore(finalReport, activeUser.uid);
+          } catch (saveErr) {
+            console.error('Could not persist scan to Firestore:', saveErr);
+            setSessionScans((prev) => [finalReport, ...prev]);
+          }
+        } else {
+          setSessionScans((prev) => [finalReport, ...prev]);
+        }
+        setSelectedReport(finalReport);
+        setActiveProgress(null);
+        setRoute('report');
         setIsSubmittingScan(false);
         return;
       }
@@ -263,11 +374,12 @@ export default function App() {
         status: data.status,
         currentStage: data.currentStage,
         progressPercent: data.progressPercent,
-        stagesLog: [],
+        stagesLog: data.stagesLog || [],
       });
       setRoute('scan');
       setIsSubmittingScan(false);
 
+      let notFoundCount = 0;
       const pollProgress = async () => {
         try {
           const authTok = await getAuthToken();
@@ -275,10 +387,31 @@ export default function App() {
             headers: authTok ? { Authorization: `Bearer ${authTok}` } : undefined,
           });
           if (!pRes.ok) {
+            if (pRes.status === 404) {
+              notFoundCount++;
+              if (notFoundCount >= 3) {
+                setActiveProgress((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        status: 'failed',
+                        currentStage: 'Failed',
+                        error: 'Scan session expired or moved across serverless instances. Please retry the scan.',
+                      }
+                    : null
+                );
+                return;
+              }
+            }
             pollTimerRef.current = window.setTimeout(pollProgress, 900);
             return;
           }
-          const pData = await pRes.json();
+          notFoundCount = 0;
+          const { data: pData } = await parseJsonSafe<any>(pRes);
+          if (!pData) {
+            pollTimerRef.current = window.setTimeout(pollProgress, 900);
+            return;
+          }
 
           setActiveProgress({
             scanId: pData.scanId,
@@ -293,8 +426,14 @@ export default function App() {
 
           if (pData.status === 'completed' || pData.status === 'partially_completed') {
             const finalReport: WebsiteScan = pData.result;
-            if (user) {
-              await saveScanToFirestore(finalReport, user.uid);
+            const currentUser = user || auth?.currentUser;
+            if (currentUser) {
+              try {
+                await saveScanToFirestore(finalReport, currentUser.uid);
+              } catch (saveErr) {
+                console.error('Could not persist scan to Firestore:', saveErr);
+                setSessionScans((prev) => [finalReport, ...prev]);
+              }
             } else {
               setSessionScans((prev) => [finalReport, ...prev]);
             }
@@ -316,6 +455,9 @@ export default function App() {
 
       pollTimerRef.current = window.setTimeout(pollProgress, 450);
     } catch (err) {
+      clearSyncTicker();
+      setActiveProgress(null);
+      setRoute('home');
       setScanSubmitError(err instanceof Error ? err.message : 'Network error starting scan.');
       setIsSubmittingScan(false);
     }
@@ -394,9 +536,9 @@ export default function App() {
         },
         body: JSON.stringify({ audience, scan }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setAiError(data.error || 'Could not generate AI brief.');
+      const { data } = await parseJsonSafe<any>(res);
+      if (!res.ok || !data) {
+        setAiError(data?.error || `Could not generate AI brief (HTTP ${res.status}).`);
         return null;
       }
       if (user && data.explanation) {
@@ -423,8 +565,8 @@ export default function App() {
       },
       body: JSON.stringify({ targetUrl: target.targetUrl }),
     });
-    const data = await res.json();
-    if (res.ok) {
+    const { data } = await parseJsonSafe<any>(res);
+    if (res.ok && data) {
       await recordMonitoringCheckResult({
         targetId: target.targetId,
         ownerUid: user.uid,
@@ -455,6 +597,7 @@ export default function App() {
             setRoute(r);
           }}
           authLoading={authLoading}
+          authReady={authReady}
         />
 
         {authNotice && (

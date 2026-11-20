@@ -596,12 +596,53 @@ export function startScanJob(params: {
   return job;
 }
 
+export async function runScanJobAndWait(params: {
+  ownerUid: string;
+  targetUrl: string;
+  maxPages?: number;
+  crawlDepth?: number;
+  isDomainVerified?: boolean;
+  serverlessBudgetMs?: number;
+}): Promise<ScanJobState> {
+  const scanId = `scan_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+  const validated = validateTargetUrl(params.targetUrl);
+  const normalizedUrl = validated.normalizedUrl || params.targetUrl;
+  const hostname = validated.hostname || 'unknown';
+
+  const job: ScanJobState = {
+    scanId,
+    ownerUid: params.ownerUid,
+    targetUrl: normalizedUrl,
+    normalizedDomain: hostname,
+    status: 'queued',
+    currentStage: 'Validating target',
+    progressPercent: 5,
+    cancelled: false,
+    stagesLog: [],
+    createdAtMs: Date.now(),
+  };
+
+  activeJobs.set(scanId, job);
+
+  await executeScanJob(job, {
+    maxPages: Math.min(8, Math.max(1, params.maxPages ?? 8)),
+    crawlDepth: Math.min(2, Math.max(0, params.crawlDepth ?? 1)),
+    isDomainVerified: Boolean(params.isDomainVerified),
+    serverlessBudgetMs: params.serverlessBudgetMs ?? 18000,
+  });
+
+  return job;
+}
+
 async function executeScanJob(
   job: ScanJobState,
-  opts: { maxPages: number; crawlDepth: number; isDomainVerified: boolean }
+  opts: { maxPages: number; crawlDepth: number; isDomainVerified: boolean; serverlessBudgetMs?: number }
 ) {
   const { scanId, ownerUid } = job;
   const startedAt = new Date().toISOString();
+  const startedAtMs = Date.now();
+  const deadlineMs = opts.serverlessBudgetMs ? startedAtMs + opts.serverlessBudgetMs : null;
+  const remainingMs = () => (deadlineMs ? Math.max(0, deadlineMs - Date.now()) : Infinity);
 
   try {
     job.status = 'running';
@@ -619,27 +660,33 @@ async function executeScanJob(
     if (!resolution.safe) {
       throw new Error(resolution.error || 'Target host failed SSRF IP verification.');
     }
-    const dnsSignals = await inspectDnsSignals(validated.hostname);
+
+    const isInitialHttps = validated.protocol === 'https:';
+    const homeTimeout = deadlineMs ? Math.min(REQUEST_TIMEOUT_MS, Math.max(3000, remainingMs() - 4000)) : REQUEST_TIMEOUT_MS;
+    const probeTimeout = deadlineMs ? Math.min(3500, Math.max(2000, remainingMs() - 4000)) : 4000;
+
+    // Run independent DNS signal lookup, HTTP->HTTPS redirect probe, TLS inspection, and Homepage fetch concurrently
+    updateJob(scanId, 'Checking HTTPS/TLS', 34);
+    const [dnsSignals, httpProbeResult, tlsInfo, homeResponse] = await Promise.all([
+      inspectDnsSignals(validated.hostname),
+      safeFetchText(`http://${validated.hostname}/`, { timeoutMs: probeTimeout, maxBytes: 16384 }).catch(() => null),
+      inspectTlsCertificate(validated.hostname, resolution.primaryAddress),
+      safeFetchText(validated.normalizedUrl, {
+        timeoutMs: homeTimeout,
+        maxBytes: MAX_BODY_BYTES,
+      }),
+    ]);
+
+    const httpRedirectsToHttps: boolean | null = httpProbeResult
+      ? httpProbeResult.finalUrl.startsWith('https://')
+      : null;
+
     updateJob(
       scanId,
       'Checking DNS',
       24,
       `Resolved ${resolution.addresses.length} public IP(s); SPF=${dnsSignals.hasSpf}, DMARC=${dnsSignals.hasDmarc}`
     );
-    if (job.cancelled) return;
-
-    // 2. TLS & HTTP -> HTTPS Redirect Check
-    updateJob(scanId, 'Checking HTTPS/TLS', 32);
-    const isInitialHttps = validated.protocol === 'https:';
-    let httpRedirectsToHttps: boolean | null = null;
-    try {
-      const httpProbe = await safeFetchText(`http://${validated.hostname}/`, { timeoutMs: 4000, maxBytes: 16384 });
-      httpRedirectsToHttps = httpProbe.finalUrl.startsWith('https://');
-    } catch {
-      httpRedirectsToHttps = null;
-    }
-
-    const tlsInfo = await inspectTlsCertificate(validated.hostname, resolution.primaryAddress);
     updateJob(
       scanId,
       'Checking HTTPS/TLS',
@@ -649,13 +696,6 @@ async function executeScanJob(
         : 'TLS certificate metadata unavailable'
     );
     if (job.cancelled) return;
-
-    // 3. Fetch Homepage & Inspect Response Headers
-    updateJob(scanId, 'Inspecting response headers', 52);
-    const homeResponse = await safeFetchText(validated.normalizedUrl, {
-      timeoutMs: REQUEST_TIMEOUT_MS,
-      maxBytes: MAX_BODY_BYTES,
-    });
 
     if (!homeResponse.ok && homeResponse.statusCode === 0) {
       throw new Error(homeResponse.error || 'Unable to connect to target website.');
@@ -671,10 +711,11 @@ async function executeScanJob(
     // 4. Analyze Homepage + Auxiliary Files (robots.txt, security.txt, sitemap.xml)
     updateJob(scanId, 'Analysing homepage', 68);
     const origin = new URL(homeResponse.finalUrl).origin;
+    const auxTimeout = deadlineMs ? Math.min(3500, Math.max(1500, remainingMs() - 3000)) : 4000;
     const [robotsRes, secTxtRes, sitemapRes] = await Promise.all([
-      safeFetchText(`${origin}/robots.txt`, { timeoutMs: 4000, maxBytes: 65536 }),
-      safeFetchText(`${origin}/.well-known/security.txt`, { timeoutMs: 4000, maxBytes: 65536 }),
-      safeFetchText(`${origin}/sitemap.xml`, { timeoutMs: 4000, maxBytes: 131072 }),
+      safeFetchText(`${origin}/robots.txt`, { timeoutMs: auxTimeout, maxBytes: 65536 }),
+      safeFetchText(`${origin}/.well-known/security.txt`, { timeoutMs: auxTimeout, maxBytes: 65536 }),
+      safeFetchText(`${origin}/sitemap.xml`, { timeoutMs: auxTimeout, maxBytes: 131072 }),
     ]);
 
     const hasRobotsTxt = robotsRes.ok && robotsRes.statusCode === 200;
@@ -725,13 +766,15 @@ async function executeScanJob(
     const brokenInternalLinks: Array<{ url: string; status: number | string }> = [];
     const candidateList = Array.from(internalCandidates).slice(0, Math.max(0, opts.maxPages - 1));
 
-    // Polite concurrency (batch of 3)
+    // Polite concurrency (batch of 3), stopping cleanly before serverless deadline
     for (let i = 0; i < candidateList.length; i += 3) {
       if (job.cancelled) return;
+      if (deadlineMs && remainingMs() < 3500) break;
       const batch = candidateList.slice(i, i + 3);
+      const linkTimeout = deadlineMs ? Math.min(4000, Math.max(1500, remainingMs() - 2500)) : 5000;
       const batchResults = await Promise.all(
         batch.map(async (linkUrl) => {
-          const res = await safeFetchText(linkUrl, { timeoutMs: 5000, maxBytes: 512 * 1024 });
+          const res = await safeFetchText(linkUrl, { timeoutMs: linkTimeout, maxBytes: 512 * 1024 });
           return { linkUrl, res };
         })
       );
@@ -752,7 +795,16 @@ async function executeScanJob(
 
     // 6. Frontend Structure & Performance Analysis
     updateJob(scanId, 'Analysing performance', 90);
-    const lighthouse = await fetchPageSpeedInsights(homeResponse.finalUrl);
+    const lighthouse: LighthouseMetrics =
+      deadlineMs && remainingMs() < 4500
+        ? {
+            available: false,
+            source: 'unavailable',
+            strategy: 'mobile',
+            dataType: 'none',
+            errorNote: 'Skipped PageSpeed Insights call to stay within serverless execution budget.',
+          }
+        : await fetchPageSpeedInsights(homeResponse.finalUrl);
     updateJob(
       scanId,
       'Evaluating content quality',
