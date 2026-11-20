@@ -22,6 +22,12 @@ const isProduction = process.env.NODE_ENV === 'production';
 const isVercelRuntime = Boolean(process.env.VERCEL);
 const ADMIN_EMAIL = 'adityaair1.2029@gmail.com';
 
+const asyncHandler =
+  (fn: (req: express.Request, res: express.Response, next: express.NextFunction) => Promise<void>) =>
+  (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
 
 function checkRateLimit(key: string, maxRequests: number, windowMs: number): boolean {
@@ -131,7 +137,7 @@ export function createApiApp() {
     });
   });
 
-  app.get('/api/integrations/status', async (req, res) => {
+  app.get('/api/integrations/status', asyncHandler(async (req, res) => {
     const user = await verifyRequestAuth(req);
     const hasFirebaseCfg =
       Boolean(process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID) ||
@@ -164,10 +170,10 @@ export function createApiApp() {
         },
       },
     });
-  });
+  }));
 
   // Protected Admin Overview (strictly restricted to verified founder email)
-  app.get('/api/admin/overview', async (req, res) => {
+  app.get('/api/admin/overview', asyncHandler(async (req, res) => {
     const user = await verifyRequestAuth(req);
     if (!user || !user.emailVerified || user.email?.toLowerCase() !== ADMIN_EMAIL) {
       res.status(403).json({ error: 'Forbidden: Admin access requires verified founder credentials.' });
@@ -188,10 +194,10 @@ export function createApiApp() {
       },
       checkedAt: new Date().toISOString(),
     });
-  });
+  }));
 
   // Vercel Cron / Scheduled Monitoring Webhook (protected by CRON_SECRET)
-  app.post('/api/cron/monitoring', async (req, res) => {
+  app.post('/api/cron/monitoring', asyncHandler(async (req, res) => {
     const cronSecret = process.env.CRON_SECRET;
     const authHeader = req.headers.authorization || '';
     const xCron = req.headers['x-cron-secret'];
@@ -220,10 +226,10 @@ export function createApiApp() {
     }
 
     res.json({ ok: true, checkedCount: results.length, results, timestamp: new Date().toISOString() });
-  });
+  }));
 
   // Start Website Scan (automatically awaits completion on serverless runtimes like Vercel)
-  app.post('/api/scans', async (req, res) => {
+  app.post('/api/scans', asyncHandler(async (req, res) => {
     const user = await verifyRequestAuth(req);
     const rateKey = `scan:${user?.uid || req.ip || 'anon'}`;
     if (!checkRateLimit(rateKey, user ? 30 : 12, 10 * 60 * 1000)) {
@@ -254,7 +260,7 @@ export function createApiApp() {
         maxPages: parsed.data.maxPages !== undefined ? Math.min(8, parsed.data.maxPages) : undefined,
         crawlDepth: parsed.data.crawlDepth,
         isDomainVerified: parsed.data.isDomainVerified,
-        serverlessBudgetMs: 18000,
+        serverlessBudgetMs: isVercelRuntime ? 8200 : 16000,
       });
 
       if (completedJob.status === 'failed') {
@@ -315,9 +321,9 @@ export function createApiApp() {
       targetUrl: job.targetUrl,
       normalizedDomain: job.normalizedDomain,
     });
-  });
+  }));
 
-  app.get('/api/scans/:scanId/progress', async (req, res) => {
+  app.get('/api/scans/:scanId/progress', asyncHandler(async (req, res) => {
     const user = await verifyRequestAuth(req);
     const job = getJobState(req.params.scanId);
     if (!job) {
@@ -339,9 +345,9 @@ export function createApiApp() {
       error: job.error,
       result: job.result,
     });
-  });
+  }));
 
-  app.post('/api/scans/:scanId/cancel', async (req, res) => {
+  app.post('/api/scans/:scanId/cancel', asyncHandler(async (req, res) => {
     const user = await verifyRequestAuth(req);
     const job = getJobState(req.params.scanId);
     if (!job) {
@@ -357,9 +363,9 @@ export function createApiApp() {
 
     const cancelled = cancelJob(req.params.scanId, callerUid);
     res.json({ cancelled, status: job.status });
-  });
+  }));
 
-  app.post('/api/remediation/verify', async (req, res) => {
+  app.post('/api/remediation/verify', asyncHandler(async (req, res) => {
     const user = await verifyRequestAuth(req);
     if (!user) {
       res.status(401).json({ error: 'Sign in with Google to run live remediation verification.' });
@@ -374,9 +380,9 @@ export function createApiApp() {
 
     const result = await verifySpecificRemediation(parsed.data);
     res.json(result);
-  });
+  }));
 
-  app.post('/api/ownership/challenge', async (req, res) => {
+  app.post('/api/ownership/challenge', asyncHandler(async (req, res) => {
     const user = await verifyRequestAuth(req);
     if (!user) {
       res.status(401).json({ error: 'Sign in with Google to verify domain ownership.' });
@@ -397,9 +403,9 @@ export function createApiApp() {
 
     const challenge = generateVerificationChallenge(validated.hostname);
     res.json(challenge);
-  });
+  }));
 
-  app.post('/api/ownership/verify', async (req, res) => {
+  app.post('/api/ownership/verify', asyncHandler(async (req, res) => {
     const user = await verifyRequestAuth(req);
     if (!user) {
       res.status(401).json({ error: 'Authentication required.' });
@@ -414,9 +420,9 @@ export function createApiApp() {
 
     const result = await verifyDomainOwnership(parsed.data);
     res.json(result);
-  });
+  }));
 
-  app.post('/api/api-audit', async (req, res) => {
+  app.post('/api/api-audit', asyncHandler(async (req, res) => {
     const user = await verifyRequestAuth(req);
     const rateKey = `apiaudit:${user?.uid || req.ip || 'anon'}`;
     if (!checkRateLimit(rateKey, 20, 10 * 60 * 1000)) {
@@ -455,9 +461,9 @@ export function createApiApp() {
     });
 
     res.json({ results, parsedOpenApiEndpoints: parsedOpenApiMeta });
-  });
+  }));
 
-  app.post('/api/monitoring/check', async (req, res) => {
+  app.post('/api/monitoring/check', asyncHandler(async (req, res) => {
     const user = await verifyRequestAuth(req);
     if (!user) {
       res.status(401).json({ error: 'Sign in with Google to run monitoring checks.' });
@@ -509,9 +515,9 @@ export function createApiApp() {
         : httpRes.error || 'Target unreachable',
       checkedAt: new Date().toISOString(),
     });
-  });
+  }));
 
-  app.post('/api/ai/explain', async (req, res) => {
+  app.post('/api/ai/explain', asyncHandler(async (req, res) => {
     const user = await verifyRequestAuth(req);
     const rateKey = `ai:${user?.uid || req.ip || 'anon'}`;
     if (!checkRateLimit(rateKey, 15, 10 * 60 * 1000)) {
@@ -540,9 +546,9 @@ export function createApiApp() {
     }
 
     res.json({ explanation: result.explanation, generatedAt: new Date().toISOString() });
-  });
+  }));
 
-  app.post('/api/ai/ask', async (req, res) => {
+  app.post('/api/ai/ask', asyncHandler(async (req, res) => {
     const user = await verifyRequestAuth(req);
     const rateKey = `ai:${user?.uid || req.ip || 'anon'}`;
     if (!checkRateLimit(rateKey, 20, 10 * 60 * 1000)) {
@@ -571,6 +577,14 @@ export function createApiApp() {
     }
 
     res.json({ answer: result.answer, answeredAt: new Date().toISOString() });
+  }));
+
+  app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    const message = err instanceof Error ? err.message : 'Internal server error.';
+    console.error('OriginSec API unhandled route error:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: message });
+    }
   });
 
   return app;

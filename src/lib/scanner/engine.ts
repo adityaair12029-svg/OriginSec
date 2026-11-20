@@ -936,16 +936,26 @@ async function executeScanJob(
     }
 
     let pagesScanned = 1;
+    const homeTitle = $home('title').first().text().trim() || null;
     const crawledUrls: string[] = [homeFirst.finalUrl];
+    const crawledPageDetails: Array<{ url: string; statusCode: number; title: string | null; ttfbMs: number }> = [
+      {
+        url: homeFirst.finalUrl,
+        statusCode: homeFirst.statusCode,
+        title: homeTitle,
+        ttfbMs: homeFirst.ttfbMs,
+      },
+    ];
+    const crawledPagesMissingTitle: string[] = [];
     const brokenInternalLinks: Array<{ url: string; status: number | string }> = [];
     // Sort lexicographically BEFORE slicing so identical pages are always sampled across runs
     const candidateList = Array.from(internalCandidates).sort().slice(0, Math.max(0, opts.maxPages - 1));
 
-    for (let i = 0; i < candidateList.length; i += 3) {
+    for (let i = 0; i < candidateList.length; i += 4) {
       if (job.cancelled) return;
-      if (deadlineMs && remainingMs() < 3500) break;
-      const batch = candidateList.slice(i, i + 3);
-      const linkTimeout = deadlineMs ? Math.min(4000, Math.max(1500, remainingMs() - 2500)) : 5000;
+      if (deadlineMs && remainingMs() < 2200) break;
+      const batch = candidateList.slice(i, i + 4);
+      const linkTimeout = deadlineMs ? Math.min(3200, Math.max(1200, remainingMs() - 1800)) : 4500;
       const batchResults = await Promise.all(
         batch.map(async (linkUrl) => {
           const res = await fetchWithSingleRetry(linkUrl, { timeoutMs: linkTimeout, maxBytes: 512 * 1024 });
@@ -955,6 +965,20 @@ async function executeScanJob(
       for (const { linkUrl, res } of batchResults) {
         pagesScanned++;
         crawledUrls.push(linkUrl);
+        let pageTitle: string | null = null;
+        if (res.ok && res.statusCode < 400 && res.body) {
+          const $sub = cheerio.load(res.body);
+          pageTitle = $sub('title').first().text().trim() || null;
+          if (!pageTitle) {
+            crawledPagesMissingTitle.push(linkUrl);
+          }
+        }
+        crawledPageDetails.push({
+          url: linkUrl,
+          statusCode: res.statusCode,
+          title: pageTitle,
+          ttfbMs: res.ttfbMs,
+        });
         if (!res.ok || res.statusCode >= 400) {
           brokenInternalLinks.push({ url: linkUrl, status: res.statusCode || res.error || 'error' });
         }
@@ -1057,6 +1081,8 @@ async function executeScanJob(
         hasRobotsTxt,
         hasSitemapXml,
         hasSecurityTxt,
+        crawledPagesMissingTitle,
+        crawledPagesCount: pagesScanned,
       },
       coverage
     );
@@ -1109,6 +1135,7 @@ async function executeScanJob(
       frontendDetails: analysis.domStats.frontendDetails,
       headersSnapshot,
       crawledUrls,
+      crawledPageDetails,
     };
 
     updateJob(scanId, 'Generating audit report', 100, `Compiled ${analysis.findings.length} evidence-backed checks (${analysis.postureFingerprint}).`);

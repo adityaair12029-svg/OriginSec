@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowLeftRight, CheckCircle2, ExternalLink, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { ArrowLeftRight, CheckCircle2, Download, ExternalLink, RefreshCw, Search, Trash2 } from 'lucide-react';
 import type { WebsiteScan } from '../types/audit';
 import { compareTwoScans } from '../lib/scanner/profiles';
+import { exportScanHistoryAsCsv } from '../lib/export/exporters';
 import { EmptyWorkspaceState } from './DashboardShell';
 
 interface ScanHistoryViewProps {
@@ -78,6 +79,17 @@ export const ScanHistoryView: React.FC<ScanHistoryViewProps> = ({
               : 'Showing session scans. Sign in with Google from the top bar to persist scan history across devices.'}
           </p>
         </div>
+
+        <button
+          type="button"
+          onClick={() => exportScanHistoryAsCsv(filtered)}
+          disabled={filtered.length === 0}
+          aria-label="Download scan history as CSV"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] text-[#151515] dark:text-white hover:border-[#008C55] dark:hover:border-[#00E69A] disabled:opacity-45 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+        >
+          <Download className="w-3.5 h-3.5 text-[#008C55] dark:text-[#00E69A]" />
+          Download History CSV
+        </button>
       </div>
 
       {/* Search, Filter & Sort Controls */}

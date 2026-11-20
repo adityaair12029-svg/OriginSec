@@ -608,6 +608,41 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
               </div>
             </section>
           </div>
+
+          {scan.metrics?.crawledPageDetails && scan.metrics.crawledPageDetails.length > 0 && (
+            <section className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-6 space-y-4">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-base font-bold text-[#151515] dark:text-white">
+                  Live Crawled Pages ({scan.metrics.crawledPageDetails.length})
+                </h3>
+                <span className="text-xs font-mono text-[#777267] dark:text-[#929292]">
+                  Same-origin deterministic crawl
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-[#E7E0D3] dark:border-[#1E1E1E] text-[#777267] dark:text-[#929292]">
+                      <th className="py-2 pr-4 font-medium">Page URL</th>
+                      <th className="py-2 px-3 font-medium">Page Title</th>
+                      <th className="py-2 px-3 font-medium text-right">HTTP</th>
+                      <th className="py-2 pl-3 font-medium text-right">TTFB</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scan.metrics.crawledPageDetails.map((pg) => (
+                      <tr key={pg.url} className="border-b border-[#EFECE4] dark:border-[#181818] last:border-b-0">
+                        <td className="py-2 pr-4 font-mono text-[#151515] dark:text-white max-w-[280px] truncate">{pg.url}</td>
+                        <td className="py-2 px-3 text-[#777267] dark:text-[#929292] max-w-[260px] truncate">{pg.title || '—'}</td>
+                        <td className="py-2 px-3 font-mono text-right tabular-nums">{pg.statusCode || 'ERR'}</td>
+                        <td className="py-2 pl-3 font-mono text-right tabular-nums text-[#777267] dark:text-[#929292]">{pg.ttfbMs} ms</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
         </div>
       )}
 

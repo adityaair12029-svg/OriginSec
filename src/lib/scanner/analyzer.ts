@@ -50,6 +50,8 @@ export interface FrontendAnalysisInput {
   hasRobotsTxt?: boolean;
   hasSitemapXml?: boolean;
   hasSecurityTxt?: boolean;
+  crawledPagesMissingTitle?: string[];
+  crawledPagesCount?: number;
 }
 
 function makeFinding(
@@ -367,24 +369,47 @@ export function analyzeAllCategories(
         status: 'open',
       });
     } else {
-      push({
-        ruleId: 'SEC_HSTS',
-        subCategory: 'headers',
-        confidence: 'verified_direct',
-        category: 'security',
-        title: 'Strict-Transport-Security (HSTS) Configured',
-        severity: 'passed',
-        priorityGroup: 'best_practice',
-        description: 'The site instructs browsers to enforce HTTPS connections via HSTS.',
-        evidence: `Strict-Transport-Security: ${hsts}`,
-        affectedUrl: secInput.finalUrl,
-        observedValue: hsts,
-        impact: 'Protects against protocol downgrade attacks on repeat visits.',
-        recommendation: 'Keep HSTS active with a max-age of at least one year.',
-        remediation: 'No action required.',
-        verification: 'Header verified in response.',
-        status: 'passed',
-      });
+      const maxAgeMatch = hsts.match(/max-age=(\d+)/i);
+      const maxAgeSec = maxAgeMatch ? Number(maxAgeMatch[1]) : 0;
+      if (maxAgeSec > 0 && maxAgeSec < 15552000) {
+        push({
+          ruleId: 'SEC_HSTS',
+          subCategory: 'headers',
+          confidence: 'verified_direct',
+          category: 'security',
+          title: 'Strict-Transport-Security (HSTS) max-age Under 180 Days',
+          severity: 'low',
+          priorityGroup: 'best_practice',
+          description: `HSTS is present, but max-age=${maxAgeSec} seconds is below the recommended 1-year (31536000) duration.`,
+          evidence: `Strict-Transport-Security: ${hsts}`,
+          affectedUrl: secInput.finalUrl,
+          observedValue: hsts,
+          impact: 'Short HSTS lifetimes shorten HTTPS downgrade protection.',
+          recommendation: 'Increase HSTS max-age to at least 31536000 (1 year) once HTTPS stability is confirmed.',
+          remediation: 'Strict-Transport-Security: max-age=31536000; includeSubDomains',
+          verification: 'Inspect Strict-Transport-Security header.',
+          status: 'open',
+        });
+      } else {
+        push({
+          ruleId: 'SEC_HSTS',
+          subCategory: 'headers',
+          confidence: 'verified_direct',
+          category: 'security',
+          title: 'Strict-Transport-Security (HSTS) Configured',
+          severity: 'passed',
+          priorityGroup: 'best_practice',
+          description: 'The site instructs browsers to enforce HTTPS connections via HSTS.',
+          evidence: `Strict-Transport-Security: ${hsts}`,
+          affectedUrl: secInput.finalUrl,
+          observedValue: hsts,
+          impact: 'Protects against protocol downgrade attacks on repeat visits.',
+          recommendation: 'Keep HSTS active with a max-age of at least one year.',
+          remediation: 'No action required.',
+          verification: 'Header verified in response.',
+          status: 'passed',
+        });
+      }
     }
   }
 
@@ -809,6 +834,33 @@ export function analyzeAllCategories(
   const $ = cheerio.load(feInput.html || '');
   const domNodeCount = $('*').length;
   const scriptCount = $('script').length;
+  const inlineScriptsWithoutNonce = $('script:not([src])').filter((_, el) => {
+    const type = ($(el).attr('type') || '').toLowerCase();
+    if (type === 'application/ld+json' || type === 'application/json') return false;
+    return !$(el).attr('nonce') && $(el).text().trim().length > 0;
+  }).length;
+  const inlineEventHandlers = $('[onclick], [onload], [onerror], [onmouseover]').length;
+  if ((!csp || csp.includes("'unsafe-inline'")) && (inlineScriptsWithoutNonce > 0 || inlineEventHandlers > 0)) {
+    push({
+      ruleId: 'SEC_INLINE_SCRIPT',
+      subCategory: 'headers',
+      confidence: 'static_html',
+      category: 'security',
+      title: 'Unprotected Inline Scripts or Event Handlers Without Strict CSP',
+      severity: 'low',
+      priorityGroup: 'best_practice',
+      description: `Detected ${inlineScriptsWithoutNonce} inline <script> block(s) and ${inlineEventHandlers} inline DOM event handler(s) without a nonce-hardened Content-Security-Policy.`,
+      evidence: `Inline scripts: ${inlineScriptsWithoutNonce}, inline handlers: ${inlineEventHandlers}`,
+      affectedUrl: secInput.finalUrl,
+      observedValue: `${inlineScriptsWithoutNonce + inlineEventHandlers} inline execution point(s)`,
+      impact: 'Inline scripts complicate strict CSP deployment and expand XSS execution surface.',
+      recommendation: 'Move inline logic into external bundled scripts or attach cryptographic CSP nonces.',
+      remediation: 'Externalize scripts or use script-src \'self\' \'nonce-<random>\'.',
+      verification: 'Inspect HTML for inline <script> tags and onclick/onload attributes.',
+      status: 'open',
+    });
+  }
+
   const stylesheetCount = $('link[rel="stylesheet"]').length;
   const renderBlockingScripts = $('head script:not([async]):not([defer]):not([type="module"])').length;
   const images = $('img');
@@ -926,6 +978,27 @@ export function analyzeAllCategories(
       status: 'open',
     });
   } else {
+    const lowerVp = viewport.toLowerCase();
+    if (lowerVp.includes('user-scalable=no') || /maximum-scale\s*=\s*1(\.0)?\b/.test(lowerVp)) {
+      push({
+        ruleId: 'A11Y_VIEWPORT_LOCK',
+        subCategory: 'accessibility',
+        confidence: 'static_html',
+        category: 'frontend',
+        title: 'Viewport Disables Pinch-to-Zoom',
+        severity: 'medium',
+        priorityGroup: 'fix_soon',
+        description: 'The viewport meta tag restricts user scaling (user-scalable=no or maximum-scale=1), violating WCAG 1.4.4.',
+        evidence: `<meta name="viewport" content="${viewport}">`,
+        affectedUrl: feInput.finalUrl,
+        observedValue: viewport,
+        impact: 'Low-vision mobile users cannot zoom text and controls.',
+        recommendation: 'Remove user-scalable=no and allow maximum-scale >= 2.',
+        remediation: '<meta name="viewport" content="width=device-width, initial-scale=1.0" />',
+        verification: 'Verify pinch-to-zoom works on mobile.',
+        status: 'open',
+      });
+    }
     push({
       ruleId: 'FE_VIEWPORT',
       subCategory: 'accessibility',
@@ -943,6 +1016,28 @@ export function analyzeAllCategories(
       remediation: 'No action required.',
       verification: 'Meta tag verified in HTML.',
       status: 'passed',
+    });
+  }
+
+  const hasFavicon = $('link[rel*="icon"]').length > 0;
+  if (!hasFavicon) {
+    push({
+      ruleId: 'FE_FAVICON',
+      subCategory: 'content',
+      confidence: 'static_html',
+      category: 'frontend',
+      title: 'Missing Explicit Favicon Link in HTML Head',
+      severity: 'low',
+      priorityGroup: 'best_practice',
+      description: 'No <link rel="icon"> or apple-touch-icon tag was found in the static HTML <head>.',
+      evidence: 'link[rel*="icon"]: Not present in initial HTML head',
+      affectedUrl: feInput.finalUrl,
+      observedValue: 'Missing favicon tag',
+      impact: 'Browsers fall back to /favicon.ico guesses and bookmarks lack brand icons.',
+      recommendation: 'Declare explicit SVG/PNG <link rel="icon"> metadata in <head>.',
+      remediation: '<link rel="icon" type="image/svg+xml" href="/favicon.svg" />',
+      verification: 'Check <head> for favicon links.',
+      status: 'open',
     });
   }
 
@@ -1095,6 +1190,27 @@ export function analyzeAllCategories(
     });
   }
 
+  if (imageCount > 0 && imagesWithoutDimensions > 0) {
+    push({
+      ruleId: 'PERF_IMG_DIMENSIONS',
+      subCategory: 'performance',
+      confidence: 'static_html',
+      category: 'frontend',
+      title: 'Images Missing Explicit Width & Height Attributes',
+      severity: 'low',
+      priorityGroup: 'optimization',
+      description: `${imagesWithoutDimensions} of ${imageCount} <img> element(s) omit explicit width/height attributes.`,
+      evidence: `${imagesWithoutDimensions}/${imageCount} images lack width or height attributes`,
+      affectedUrl: feInput.finalUrl,
+      observedValue: `${imagesWithoutDimensions} unsized image(s)`,
+      impact: 'Without intrinsic aspect-ratio dimensions, browsers may shift layout (CLS) as images load.',
+      recommendation: 'Specify width and height attributes or CSS aspect-ratio on all <img> tags.',
+      remediation: '<img src="..." width="800" height="450" alt="..." />',
+      verification: 'Inspect <img> tags and CLS in DevTools.',
+      status: 'open',
+    });
+  }
+
   if (emptyLinks > 0) {
     push({
       ruleId: 'A11Y_EMPTY_LINKS',
@@ -1197,6 +1313,28 @@ export function analyzeAllCategories(
       recommendation: 'Update or redirect broken internal URLs to valid destinations.',
       remediation: 'Fix href targets or configure 301 redirects for moved pages.',
       verification: 'Re-run site scan and confirm HTTP 200 responses.',
+      status: 'open',
+    });
+  }
+
+  const crawledMissingTitle = [...(feInput.crawledPagesMissingTitle || [])].sort();
+  if (crawledMissingTitle.length > 0) {
+    push({
+      ruleId: 'FE_CRAWL_MISSING_TITLES',
+      subCategory: 'seo',
+      confidence: 'verified_direct',
+      category: 'frontend',
+      title: 'Crawled Sub-Pages Missing <title> Metadata',
+      severity: 'low',
+      priorityGroup: 'optimization',
+      description: `${crawledMissingTitle.length} crawled same-origin page(s) lacked a non-empty <title> tag.`,
+      evidence: `Examples: ${crawledMissingTitle.slice(0, 3).join(', ')}`,
+      affectedUrl: crawledMissingTitle[0],
+      observedValue: `${crawledMissingTitle.length} page(s)`,
+      impact: 'Secondary pages without unique titles hurt usability and search indexing.',
+      recommendation: 'Ensure every route renders a descriptive, unique <title> element.',
+      remediation: '<title>Page Section — Brand</title>',
+      verification: 'Inspect crawled sub-page <head> tags.',
       status: 'open',
     });
   }
@@ -1565,6 +1703,27 @@ export function analyzeAllCategories(
     });
   }
 
+  if (!hasSemanticMain && bodyWords > 20) {
+    push({
+      ruleId: 'A11Y_LANDMARK_MAIN',
+      subCategory: 'accessibility',
+      confidence: 'static_html',
+      category: 'frontend',
+      title: 'Missing Semantic <main> Landmark Element',
+      severity: 'low',
+      priorityGroup: 'best_practice',
+      description: 'Static HTML lacks a <main> landmark region for primary page content (WCAG 1.3.1 / 2.4.1).',
+      evidence: `<main> count: 0, <nav> links: ${navLinks}, <footer>: ${hasSemanticFooter}`,
+      affectedUrl: feInput.finalUrl,
+      observedValue: 'No <main> landmark',
+      impact: 'Screen-reader users cannot jump straight to primary content via landmark navigation.',
+      recommendation: 'Wrap the primary page body content inside a single <main> element.',
+      remediation: '<header><nav>...</nav></header><main>...</main><footer>...</footer>',
+      verification: 'Inspect landmark outline in browser accessibility tree.',
+      status: 'open',
+    });
+  }
+
   if (navLinks === 0 && !hasSemanticMain && bodyWords > 20) {
     push({
       ruleId: 'ENG_LANDMARKS',
@@ -1713,7 +1872,7 @@ export function analyzeAllCategories(
     });
   }
 
-  const scores = calculateCategoryScores(findings);
+  const scores = calculateCategoryScores(findings, coverage, feInput.lighthouse);
   const findingsCount = countSeverities(findings);
   const postureFingerprint = computePostureFingerprint(findings, scores);
 
@@ -1763,9 +1922,14 @@ const SEVERITY_PENALTIES: Record<SeverityLevel, number> = {
 
 /**
  * Computes deterministic category scores (0-100) from actual assessed checks.
- * Returns null when a category has zero assessed checks (never assigns a passing score to untested categories).
+ * Never assigns 100/100 to unmeasured categories or partial static-only sub-scores
+ * when Lighthouse / visual contrast verification is absent.
  */
-export function calculateCategoryScores(findings: ScanFinding[]): CategoryScores {
+export function calculateCategoryScores(
+  findings: ScanFinding[],
+  coverage?: ScanCoverage,
+  lighthouse?: LighthouseMetrics
+): CategoryScores {
   const scoreForCategory = (cat: FindingCategory): number | null => {
     const assessed = findings.filter((f) => f.category === cat && f.status !== 'not_assessed');
     if (assessed.length === 0) return null;
@@ -1787,10 +1951,48 @@ export function calculateCategoryScores(findings: ScanFinding[]): CategoryScores
     return Math.max(0, Math.min(100, Math.round(score)));
   };
 
-  const security = scoreForCategory('security');
+  let security = scoreForCategory('security');
   const frontend = scoreForCategory('frontend');
-  const backend = scoreForCategory('backend');
-  const engagement = scoreForCategory('engagement');
+  let backend = scoreForCategory('backend');
+  let engagement = scoreForCategory('engagement');
+  let seo = scoreForSubCategory('seo');
+
+  if (security !== null && coverage && coverage.httpsVerified && !coverage.tlsVerified) {
+    security = Math.min(85, security);
+  }
+
+  if (backend !== null && coverage && !coverage.apiVerified && !coverage.databaseVerified && !coverage.hostingVerified) {
+    // External HTTP checks alone cannot verify private backend code, databases, or API auth posture
+    backend = Math.min(92, backend);
+  }
+
+  if (engagement !== null && coverage && !lighthouse?.available) {
+    engagement = Math.min(92, engagement);
+  }
+
+  if (seo !== null && coverage && !lighthouse?.available) {
+    seo = Math.min(92, seo);
+  }
+
+  let performance = scoreForSubCategory('performance');
+  if (performance !== null) {
+    if (lighthouse?.available && lighthouse.performanceScore !== undefined) {
+      performance = Math.max(0, Math.min(100, Math.round(lighthouse.performanceScore * 0.7 + performance * 0.3)));
+    } else {
+      // Without real browser Core Web Vitals (LCP/CLS/INP), static HTTP timing cannot claim 100/100
+      performance = Math.min(85, performance);
+    }
+  }
+
+  let accessibility = scoreForSubCategory('accessibility');
+  if (accessibility !== null) {
+    if (lighthouse?.available && lighthouse.accessibilityScore !== undefined) {
+      accessibility = Math.max(0, Math.min(100, Math.round(lighthouse.accessibilityScore * 0.65 + accessibility * 0.35)));
+    } else {
+      // Static HTML checks cannot verify color contrast or keyboard focus traps
+      accessibility = Math.min(88, accessibility);
+    }
+  }
 
   const valid = [security, frontend, backend, engagement].filter((s): s is number => s !== null);
   const overall = valid.length > 0 ? Math.round(valid.reduce((a, b) => a + b, 0) / valid.length) : null;
@@ -1801,9 +2003,9 @@ export function calculateCategoryScores(findings: ScanFinding[]): CategoryScores
     backend,
     engagement,
     overall,
-    seo: scoreForSubCategory('seo'),
-    accessibility: scoreForSubCategory('accessibility'),
-    performance: scoreForSubCategory('performance'),
+    seo,
+    accessibility,
+    performance,
   };
 }
 

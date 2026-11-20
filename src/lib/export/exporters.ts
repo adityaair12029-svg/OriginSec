@@ -104,6 +104,73 @@ export function exportScanAsCsv(scan: WebsiteScan) {
   triggerDownload(blob, `originsec-findings-${scan.normalizedDomain}-${scan.scanId}.csv`);
 }
 
+export function buildScanHistoryCsvContent(scans: WebsiteScan[]): string {
+  const headers = [
+    'Scan ID',
+    'Domain',
+    'Target URL',
+    'Scan Profile',
+    'Status',
+    'Posture Fingerprint',
+    'Overall Score',
+    'Security Score',
+    'Front-End Score',
+    'Back-End Score',
+    'Engagement Score',
+    'SEO Score',
+    'Accessibility Score',
+    'Performance Score',
+    'Critical Issues',
+    'High Issues',
+    'Medium Issues',
+    'Low Issues',
+    'Passed Checks',
+    'Pages Scanned',
+    'TTFB (ms)',
+    'Started At',
+    'Completed At',
+  ];
+
+  const rows = scans.map((s) =>
+    [
+      s.scanId,
+      s.normalizedDomain,
+      s.targetUrl,
+      s.scanProfile || s.coverage?.scanProfile || 'standard',
+      s.status,
+      s.postureFingerprint || '',
+      s.scores?.overall ?? '',
+      s.scores?.security ?? '',
+      s.scores?.frontend ?? '',
+      s.scores?.backend ?? '',
+      s.scores?.engagement ?? '',
+      s.scores?.seo ?? '',
+      s.scores?.accessibility ?? '',
+      s.scores?.performance ?? '',
+      s.findingsCount?.critical ?? 0,
+      s.findingsCount?.high ?? 0,
+      s.findingsCount?.medium ?? 0,
+      s.findingsCount?.low ?? 0,
+      s.findingsCount?.passed ?? 0,
+      s.coverage?.pagesScanned ?? 1,
+      s.metrics?.ttfbMs ?? '',
+      s.startedAt,
+      s.completedAt || '',
+    ]
+      .map(escapeCsvCell)
+      .join(',')
+  );
+
+  return [headers.map(escapeCsvCell).join(','), ...rows].join('\r\n');
+}
+
+export function exportScanHistoryAsCsv(scans: WebsiteScan[]) {
+  const csvContent = buildScanHistoryCsvContent(scans);
+  const stamp = new Date().toISOString().slice(0, 10);
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+  triggerDownload(blob, `originsec-scan-history-${stamp}.csv`);
+}
+
 export function exportScanAsPdf(scan: WebsiteScan) {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -204,7 +271,17 @@ export function exportScanAsPdf(scan: WebsiteScan) {
     doc.setTextColor(100, 100, 100);
     doc.text(b.label.toUpperCase(), x + 10, y + 36);
   });
-  y += 64;
+  y += 58;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(70, 70, 70);
+  doc.text(
+    `Overall: ${scan.scores?.overall ?? 'N/A'}/100  |  SEO: ${scan.scores?.seo ?? 'N/A'}/100  |  Accessibility: ${scan.scores?.accessibility ?? 'N/A'}/100  |  Performance: ${scan.scores?.performance ?? 'N/A'}/100  |  TTFB: ${scan.metrics?.ttfbMs ?? 'N/A'} ms`,
+    margin,
+    y
+  );
+  y += 20;
 
   // Findings
   doc.setFont('helvetica', 'bold');

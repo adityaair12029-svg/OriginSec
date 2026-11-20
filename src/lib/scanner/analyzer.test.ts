@@ -10,6 +10,7 @@ import {
 import { compareTwoScans } from './profiles';
 import { runScanJobAndWait } from './engine';
 import { createApiApp } from '../server/app';
+import { buildScanHistoryCsvContent } from '../export/exporters';
 import type { ScanCoverage, WebsiteScan } from '../../types/audit';
 
 function makeCoverage(): ScanCoverage {
@@ -119,6 +120,9 @@ test('analyzeAllCategories computes deterministic findings and never assigns pas
   assert.ok(result.findings.some((f) => f.title === 'Backup Status Unavailable' && f.status === 'not_assessed'));
   assert.ok(result.scores.security !== null && result.scores.security < 100);
   assert.ok(result.scores.backend !== null && result.scores.backend >= 90);
+  // Without PageSpeed / browser contrast verification, performance and accessibility must not claim 100/100
+  assert.ok(result.scores.performance != null && result.scores.performance <= 85);
+  assert.ok(result.scores.accessibility != null && result.scores.accessibility <= 88);
   assert.ok(typeof result.postureFingerprint === 'string' && result.postureFingerprint.length >= 8);
 
   const summary = buildExecutiveSummary('example.com', result.scores, result.findings, coverage);
@@ -354,7 +358,41 @@ test('createApiApp enforces SSRF rejection, protected admin/cron/remediation gat
       body: JSON.stringify({ targetUrl: 'https://example.com', title: 'Missing CSP' }),
     });
     assert.equal(remRes.status, 401);
+
+    // Authenticated-looking Bearer token must not crash Express handler even if invalid
+    const authedScanRes = await fetch(`${baseUrl}/api/scans`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer invalid.jwt.token' },
+      body: JSON.stringify({ targetUrl: 'http://127.0.0.1/', authorizedConfirmed: true, sync: true }),
+    });
+    assert.equal(authedScanRes.status, 400);
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
+});
+
+test('buildScanHistoryCsvContent formats multi-row scan history with escaped CSV cells', () => {
+  const sample = [
+    {
+      scanId: 'scan_1',
+      normalizedDomain: 'example.com',
+      targetUrl: 'https://example.com/',
+      scanProfile: 'standard',
+      status: 'completed',
+      postureFingerprint: 'abcd1234',
+      scores: { security: 65, frontend: 82, backend: 90, engagement: 74, overall: 78, seo: 75, accessibility: 84, performance: 85 },
+      findingsCount: { critical: 0, high: 2, medium: 3, low: 4, informational: 2, passed: 5 },
+      coverage: { pagesScanned: 4 },
+      metrics: { ttfbMs: 145 },
+      startedAt: '2026-11-20T10:00:00.000Z',
+      completedAt: '2026-11-20T10:00:04.000Z',
+    },
+  ] as unknown as WebsiteScan[];
+
+  const csv = buildScanHistoryCsvContent(sample);
+  const lines = csv.split('\r\n');
+  assert.equal(lines.length, 2);
+  assert.ok(lines[0].includes('"Scan ID","Domain","Target URL"'));
+  assert.ok(lines[1].includes('"scan_1","example.com","https://example.com/"'));
+  assert.ok(lines[1].includes('"78","65","82","90","74"'));
 });

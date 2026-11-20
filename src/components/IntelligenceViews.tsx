@@ -113,7 +113,18 @@ export const FrontendIntelligenceView: React.FC<{
             Crawled Pages ({m?.crawledUrls?.length ?? activeScan.coverage?.pagesScanned ?? 1})
           </h2>
         </div>
-        {m?.crawledUrls && m.crawledUrls.length > 0 ? (
+        {m?.crawledPageDetails && m.crawledPageDetails.length > 0 ? (
+          <ul className="space-y-1.5 text-xs font-mono text-[#777267] dark:text-[#929292]">
+            {m.crawledPageDetails.map((pg) => (
+              <li key={pg.url} className="flex items-center justify-between gap-3 py-1.5 border-b border-[#EFECE4] dark:border-[#181818] last:border-b-0">
+                <span className="truncate text-[#151515] dark:text-white">{pg.url}</span>
+                <span className="shrink-0 text-[11px] tabular-nums">
+                  HTTP {pg.statusCode || 'ERR'} · {pg.ttfbMs}ms
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : m?.crawledUrls && m.crawledUrls.length > 0 ? (
           <ul className="space-y-1.5 text-xs font-mono text-[#777267] dark:text-[#929292]">
             {m.crawledUrls.map((u) => (
               <li key={u} className="truncate py-1 border-b border-[#EFECE4] dark:border-[#181818] last:border-b-0">

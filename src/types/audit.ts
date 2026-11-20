@@ -190,6 +190,12 @@ export interface ScanMetrics {
   frontendDetails?: ExtendedFrontendMetrics;
   headersSnapshot?: Record<string, string>;
   crawledUrls?: string[];
+  crawledPageDetails?: Array<{
+    url: string;
+    statusCode: number;
+    title: string | null;
+    ttfbMs: number;
+  }>;
 }
 
 export interface ScanFinding {
