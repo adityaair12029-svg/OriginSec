@@ -39,12 +39,12 @@ export const LoginView: React.FC<LoginViewProps> = ({
           </p>
         </div>
 
-        <div className="w-full rounded-2xl border border-[#E5E7EB] dark:border-white/[0.09] bg-white/92 dark:bg-[#101115]/92 backdrop-blur-md p-4 space-y-2.5 shadow-[0_18px_50px_rgba(10,10,12,0.08)] dark:shadow-[0_24px_60px_rgba(0,0,0,0.6)]">
+        <div className="card-lighting w-full rounded-2xl bg-white/92 dark:bg-[#101115]/92 backdrop-blur-md p-4 space-y-2.5 shadow-[0_18px_50px_rgba(10,10,12,0.08)] dark:shadow-[0_24px_60px_rgba(0,0,0,0.6)]">
           <button
             type="button"
             onClick={() => void onGoogleSignIn()}
             disabled={authLoading}
-            className="w-full h-11 rounded-full bg-[#2F75C3] dark:bg-[#2F71E3] hover:opacity-95 active:scale-[0.99] text-white text-sm font-medium inline-flex items-center justify-center gap-2.5 transition-all cursor-pointer disabled:opacity-60"
+            className="btn-lighting w-full h-11 rounded-full bg-[#2F75C3] dark:bg-[#2F71E3] hover:opacity-95 active:scale-[0.99] text-white text-sm font-medium inline-flex items-center justify-center gap-2.5 transition-all cursor-pointer disabled:opacity-60"
           >
             {authLoading ? (
               <Loader2 className="w-4 h-4 animate-spin" />

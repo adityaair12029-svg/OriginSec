@@ -192,7 +192,7 @@ export const Header: React.FC<HeaderProps> = ({
               type="button"
               onClick={() => handleNav('login')}
               disabled={authLoading}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-[13px] font-medium bg-[#2F75C3] dark:bg-[#2F71E3] text-white hover:opacity-90 transition-opacity whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+              className="btn-lighting inline-flex items-center gap-2 px-4 py-2 rounded-full text-[13px] font-medium bg-[#2F75C3] dark:bg-[#2F71E3] text-white hover:opacity-90 transition-opacity whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
             >
               Sign in
             </button>

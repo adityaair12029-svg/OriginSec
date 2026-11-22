@@ -124,7 +124,7 @@ export const LandingHome: React.FC<LandingHomeProps> = ({
 
         {/* Responsive Pill URL Input Bar (button always stays neatly inside box on mobile & desktop) */}
         <form onSubmit={handleSubmit} className="pt-2 max-w-3xl mx-auto w-full space-y-3.5" noValidate>
-          <div className="w-full overflow-hidden rounded-2xl sm:rounded-full border border-[#E5E7EB] dark:border-white/[0.12] bg-white/95 dark:bg-[#101115]/95 backdrop-blur-md p-2 sm:p-2.5 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 focus-within:border-[#2F75C3] dark:focus-within:border-[#2F71E3] transition-all duration-200 shadow-[0_14px_42px_rgba(10,10,12,0.06)] dark:shadow-[0_18px_50px_rgba(0,0,0,0.45)]">
+          <div className="card-lighting w-full overflow-hidden rounded-2xl sm:rounded-full bg-white/95 dark:bg-[#101115]/95 backdrop-blur-md p-2 sm:p-2.5 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 transition-all duration-200 shadow-[0_14px_42px_rgba(10,10,12,0.08)] dark:shadow-[0_18px_50px_rgba(0,0,0,0.5)]">
             <label htmlFor="target-url-input" className="sr-only">
               Website URL to analyze
             </label>
@@ -144,7 +144,7 @@ export const LandingHome: React.FC<LandingHomeProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full sm:w-auto px-6 sm:px-7 py-3 sm:py-3.5 rounded-xl sm:rounded-full font-medium text-[15px] bg-[#2F75C3] dark:bg-[#2F71E3] text-white hover:opacity-95 active:scale-[0.99] transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+              className="btn-lighting w-full sm:w-auto px-6 sm:px-7 py-3 sm:py-3.5 rounded-xl sm:rounded-full font-medium text-[15px] bg-[#2F75C3] dark:bg-[#2F71E3] text-white hover:opacity-95 active:scale-[0.99] transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
             >
               {isSubmitting ? 'Auditing live...' : 'Analyze target'}
             </button>

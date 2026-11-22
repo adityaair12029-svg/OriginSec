@@ -8,6 +8,12 @@ interface ParticleFieldCanvasProps {
 }
 
 interface Particle {
+  orbitRadiusX: number;
+  orbitRadiusY: number;
+  orbitAngle: number;
+  angularSpeed: number;
+  centerXRatio: number;
+  centerYRatio: number;
   baseX: number;
   baseY: number;
   x: number;
@@ -22,9 +28,9 @@ interface Particle {
   isDot: boolean;
 }
 
-// Restrained Antigravity palette matching subtle orbital micro-dashes & calm dots
-const LIGHT_HERO_COLORS = ['#2F75C3', '#4F6BED', '#6366F1', '#D97757', '#7E8798'];
-const DARK_HERO_COLORS = ['#3B82F6', '#60A5FA', '#818CF8', '#94A3B8', '#E2E8F0'];
+// Vivid Google-brand palette engineered to pop crisply on both Light (#FFFFFF) and Dark (#070708)
+const LIGHT_GOOGLE_COLORS = ['#2563EB', '#EA4335', '#D97706', '#16A34A', '#4285F4'];
+const DARK_GOOGLE_COLORS = ['#4285F4', '#FF5247', '#FBBC05', '#34A853', '#60A5FA'];
 
 export const ParticleFieldCanvas: React.FC<ParticleFieldCanvasProps> = ({
   theme,
@@ -32,7 +38,12 @@ export const ParticleFieldCanvas: React.FC<ParticleFieldCanvasProps> = ({
   className = '',
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const pointerRef = useRef<{ x: number; y: number; active: boolean }>({ x: 0, y: 0, active: false });
+  const pointerRef = useRef<{ x: number; y: number; active: boolean; speed: number }>({
+    x: 0,
+    y: 0,
+    active: false,
+    speed: 0,
+  });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -50,7 +61,6 @@ export const ParticleFieldCanvas: React.FC<ParticleFieldCanvasProps> = ({
     let dpr = 1;
     let particles: Particle[] = [];
     let rafId: number | null = null;
-    let timerId: number | null = null;
     let disposed = false;
     let tick = 0;
 
@@ -68,151 +78,180 @@ export const ParticleFieldCanvas: React.FC<ParticleFieldCanvasProps> = ({
       particles = [];
 
       if (variant === 'wave') {
-        // Dense yet calm undulating dot horizon framing the Login card
-        const cols = width < 640 ? 24 : 38;
-        const rows = width < 640 ? 10 : 14;
-        for (let r = 0; r < rows; r++) {
-          for (let c = 0; c < cols; c++) {
-            const nx = (c + 0.5) / cols;
-            const ny = 0.52 + (r / rows) * 0.46;
-            const waveOffset = Math.sin(nx * Math.PI * 3.2 + r * 0.42) * 16;
-            const bx = nx * width;
-            const by = ny * height + waveOffset;
-            particles.push({
-              baseX: bx,
-              baseY: by,
-              x: bx,
-              y: by,
-              vx: 0,
-              vy: 0,
-              size: 1.2 + ((r + c) % 3) * 0.45,
-              length: 2,
-              phase: nx * 6.28 + r * 0.45,
-              hueIndex: (r * 3 + c) % 5,
-              alpha: 0.18 + (r / rows) * 0.36,
-              isDot: true,
-            });
-          }
-        }
-      } else {
-        // Dense, soft Antigravity orbital halo keeping center text crisp & readable
-        const count = width < 640 ? 210 : 380;
-        const cx = width * 0.48;
-        const cy = height * 0.44;
-        const minRadius = Math.min(width, height) * 0.16;
-        const maxRadius = Math.max(width, height) * 0.68;
+        // Dense circular vortex rings & glowing dust horizon on Login page
+        const count = width < 640 ? 220 : 440;
+        const cx = width * 0.5;
+        const cy = height * 0.62;
+        const minR = Math.min(width, height) * 0.14;
+        const maxR = Math.max(width, height) * 0.62;
 
         for (let i = 0; i < count; i++) {
           const frac = (i + 1) / count;
-          const angle = i * 2.3999632; // Golden-angle phyllotaxis spacing
-          const radius = minRadius + Math.pow(frac, 0.72) * (maxRadius - minRadius);
-          const bx = cx + Math.cos(angle) * radius;
-          const by = cy + Math.sin(angle) * radius * 0.78;
-          // Quiet central halo fade so headline contrast stays pristine
-          const distFromCenter = Math.hypot((bx - cx) / (width * 0.35), (by - cy) / (height * 0.35));
-          const centerFade = Math.min(1, Math.max(0.28, distFromCenter * 0.85));
+          const angle = i * 2.3999632;
+          const radius = minR + Math.pow(frac, 0.72) * (maxR - minR);
+          const rx = radius * 1.15;
+          const ry = radius * 0.68;
+          const bx = cx + Math.cos(angle) * rx;
+          const by = cy + Math.sin(angle) * ry;
+
+          const textCx = width * 0.5;
+          const textCy = height * 0.43;
+          const textDistRatio = Math.hypot((bx - textCx) / Math.max(140, width * 0.22), (by - textCy) / Math.max(95, height * 0.16));
+          const textClearance = Math.min(1, Math.max(0.24, textDistRatio * 0.85));
 
           particles.push({
+            orbitRadiusX: rx,
+            orbitRadiusY: ry,
+            orbitAngle: angle,
+            angularSpeed: (i % 2 === 0 ? 1 : -0.65) * (0.0038 + (1 - frac) * 0.0052),
+            centerXRatio: 0.5,
+            centerYRatio: 0.62,
             baseX: bx,
             baseY: by,
             x: bx,
             y: by,
             vx: 0,
             vy: 0,
-            size: 1.35 + (i % 3) * 0.35,
-            length: 2.6 + (i % 4) * 1.1,
+            size: 1.85 + (i % 3) * 0.65,
+            length: 4 + (i % 3) * 1.6,
             phase: angle,
             hueIndex: i % 5,
-            alpha: (0.2 + (i % 4) * 0.085) * centerFade,
-            isDot: i % 3 === 0,
+            alpha: (0.66 + (i % 4) * 0.085) * textClearance,
+            isDot: i % 4 !== 0,
+          });
+        }
+      } else {
+        // Rich, tight circular orbiting dust vortex framing the main Scanner hero & input bar
+        const count = width < 640 ? 250 : 500;
+        const cx = width * 0.5;
+        const cy = height * 0.44;
+        const minRadius = Math.min(width, height) * 0.12;
+        const maxRadius = Math.max(width, height) * 0.56;
+
+        for (let i = 0; i < count; i++) {
+          const frac = (i + 1) / count;
+          const angle = i * 2.3999632; // Golden-angle circular distribution
+          const radius = minRadius + Math.pow(frac, 0.76) * (maxRadius - minRadius);
+          const rx = radius * 1.06;
+          const ry = radius * 0.84;
+          const bx = cx + Math.cos(angle) * rx;
+          const by = cy + Math.sin(angle) * ry;
+
+          // Keep center behind H1 clean while making inner/mid rings crisp & unmissable
+          const distRatio = Math.hypot((bx - cx) / (width * 0.28), (by - cy) / (height * 0.28));
+          const centerFade = Math.min(1, Math.max(0.38, distRatio * 0.92));
+
+          particles.push({
+            orbitRadiusX: rx,
+            orbitRadiusY: ry,
+            orbitAngle: angle,
+            angularSpeed: (i % 3 === 0 ? -0.75 : 1) * (0.0042 + (1 - frac) * 0.0062),
+            centerXRatio: 0.5,
+            centerYRatio: 0.44,
+            baseX: bx,
+            baseY: by,
+            x: bx,
+            y: by,
+            vx: 0,
+            vy: 0,
+            size: 1.9 + (i % 3) * 0.65,
+            length: 4.5 + (i % 4) * 1.6,
+            phase: angle,
+            hueIndex: i % 5,
+            alpha: (0.64 + (i % 4) * 0.085) * centerFade,
+            isDot: i % 3 !== 0,
           });
         }
       }
     };
 
     const drawFrame = () => {
-      tick += 0.022;
+      tick += 0.045;
       ctx.clearRect(0, 0, width, height);
 
-      if (variant === 'wave') {
-        const grad = ctx.createRadialGradient(
-          width * 0.5,
-          height * 0.92,
-          20,
-          width * 0.5,
-          height * 0.9,
-          Math.max(width, height) * 0.6
-        );
+      const pointer = pointerRef.current;
+      pointer.speed *= 0.9;
+
+      // Subtle atmospheric aura centered behind the cursor when active
+      if (pointer.active && !prefersReducedMotion) {
+        const glow = ctx.createRadialGradient(pointer.x, pointer.y, 4, pointer.x, pointer.y, 240);
         if (theme === 'dark') {
-          grad.addColorStop(0, 'rgba(47, 113, 227, 0.2)');
-          grad.addColorStop(0.5, 'rgba(30, 82, 136, 0.1)');
-          grad.addColorStop(1, 'rgba(7, 7, 8, 0)');
+          glow.addColorStop(0, 'rgba(66, 133, 244, 0.16)');
+          glow.addColorStop(0.5, 'rgba(52, 168, 83, 0.06)');
+          glow.addColorStop(1, 'rgba(7, 7, 8, 0)');
         } else {
-          grad.addColorStop(0, 'rgba(47, 117, 195, 0.11)');
-          grad.addColorStop(0.55, 'rgba(47, 117, 195, 0.04)');
-          grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+          glow.addColorStop(0, 'rgba(66, 133, 244, 0.11)');
+          glow.addColorStop(0.5, 'rgba(234, 67, 53, 0.04)');
+          glow.addColorStop(1, 'rgba(255, 255, 255, 0)');
         }
-        ctx.fillStyle = grad;
+        ctx.fillStyle = glow;
         ctx.fillRect(0, 0, width, height);
       }
 
-      const pointer = pointerRef.current;
-      const colors = theme === 'dark' ? DARK_HERO_COLORS : LIGHT_HERO_COLORS;
-      const influenceRadius = variant === 'wave' ? 200 : 230;
+      const colors = theme === 'dark' ? DARK_GOOGLE_COLORS : LIGHT_GOOGLE_COLORS;
+      const influenceRadius = variant === 'wave' ? 240 : 270;
 
       for (let i = 0; i < particles.length; i++) {
         const p = particles[i];
-        const driftX = Math.cos(tick + p.phase) * (variant === 'wave' ? 3.2 : 4.2);
-        const driftY = Math.sin(tick * 1.1 + p.phase) * (variant === 'wave' ? 3.8 : 4.2);
 
-        let targetX = p.baseX + driftX;
-        let targetY = p.baseY + driftY;
+        // True circular/elliptical orbital dust revolution
+        p.orbitAngle += p.angularSpeed;
+        const cx = width * p.centerXRatio;
+        const cy = height * p.centerYRatio;
+        const radialPulse = 1 + Math.sin(tick * 0.85 + p.phase) * 0.035;
+        const targetX = cx + Math.cos(p.orbitAngle) * p.orbitRadiusX * radialPulse;
+        const targetY = cy + Math.sin(p.orbitAngle) * p.orbitRadiusY * radialPulse;
 
+        let forceX = (targetX - p.x) * 0.14;
+        let forceY = (targetY - p.y) * 0.14;
+        let boostAlpha = p.alpha;
+        let boostSize = p.size;
+
+        // Energetic circular cursor vortex: pulls & spins dust fast around the pointer
         if (pointer.active && !prefersReducedMotion) {
           const dx = pointer.x - p.x;
           const dy = pointer.y - p.y;
           const dist = Math.hypot(dx, dy);
           if (dist < influenceRadius && dist > 1) {
-            const pull = (1 - dist / influenceRadius) * (variant === 'wave' ? 38 : 44);
-            targetX += (dx / dist) * pull;
-            targetY += (dy / dist) * pull;
+            const strength = 1 - dist / influenceRadius;
+            const invDist = 1 / dist;
+            const ux = dx * invDist;
+            const uy = dy * invDist;
+            // Tangential vector (-uy, ux) produces crisp circular swirling vortex around cursor
+            const swirlPower = (9.5 + Math.min(10, pointer.speed * 0.25)) * strength;
+            const radialPull = 6.2 * strength;
+
+            forceX += ux * radialPull - uy * swirlPower;
+            forceY += uy * radialPull + ux * swirlPower;
+            boostAlpha = Math.min(1, p.alpha + strength * 0.35);
+            boostSize = p.size + strength * 1.1;
           }
         }
 
-        p.vx += (targetX - p.x) * 0.1;
-        p.vy += (targetY - p.y) * 0.1;
-        p.vx *= 0.8;
-        p.vy *= 0.8;
+        p.vx = (p.vx + forceX) * 0.78;
+        p.vy = (p.vy + forceY) * 0.78;
         p.x += p.vx;
         p.y += p.vy;
 
-        const color =
-          variant === 'wave'
-            ? theme === 'dark'
-              ? i % 4 === 0
-                ? '#7FB3FF'
-                : '#CBD5E1'
-              : i % 3 === 0
-                ? '#2F75C3'
-                : '#64748B'
-            : colors[p.hueIndex % colors.length];
+        const color = colors[p.hueIndex % colors.length];
+        ctx.globalAlpha = boostAlpha;
 
-        ctx.globalAlpha = p.alpha;
-
-        if (p.isDot || variant === 'wave') {
+        if (p.isDot) {
           ctx.fillStyle = color;
           ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.arc(p.x, p.y, boostSize, 0, Math.PI * 2);
           ctx.fill();
         } else {
-          const angle = pointer.active
-            ? Math.atan2(pointer.y - p.y, pointer.x - p.x)
-            : Math.atan2(p.y - height * 0.44, p.x - width * 0.48);
-          const halfLen = p.length * 0.5;
-          const cosA = Math.cos(angle) * halfLen;
-          const sinA = Math.sin(angle) * halfLen;
+          // Align orbital micro-dash along live motion vector for dynamic speed trails
+          const motionAngle =
+            Math.hypot(p.vx, p.vy) > 0.35
+              ? Math.atan2(p.vy, p.vx)
+              : p.orbitAngle + Math.PI * 0.5;
+          const halfLen = (p.length + Math.min(6, Math.hypot(p.vx, p.vy) * 0.7)) * 0.5;
+          const cosA = Math.cos(motionAngle) * halfLen;
+          const sinA = Math.sin(motionAngle) * halfLen;
           ctx.strokeStyle = color;
-          ctx.lineWidth = p.size;
+          ctx.lineWidth = boostSize;
           ctx.lineCap = 'round';
           ctx.beginPath();
           ctx.moveTo(p.x - cosA, p.y - sinA);
@@ -223,27 +262,37 @@ export const ParticleFieldCanvas: React.FC<ParticleFieldCanvasProps> = ({
       ctx.globalAlpha = 1;
     };
 
-    const scheduleNextFrame = () => {
-      if (disposed || prefersReducedMotion) return;
-      timerId = window.setTimeout(() => {
-        if (disposed) return;
-        rafId = window.requestAnimationFrame(() => {
-          if (disposed) return;
-          if (!document.hidden) drawFrame();
-          scheduleNextFrame();
-        });
-      }, 34);
+    const animate = () => {
+      if (disposed) return;
+      if (!document.hidden) {
+        drawFrame();
+      }
+      if (!prefersReducedMotion) {
+        rafId = window.requestAnimationFrame(animate);
+      }
     };
 
-    const onMouseMove = (e: MouseEvent) => {
+    const updatePointer = (x: number, y: number) => {
+      const prev = pointerRef.current;
+      const moveDist = prev.active ? Math.hypot(x - prev.x, y - prev.y) : 0;
       pointerRef.current = {
-        x: e.clientX,
-        y: e.clientY,
+        x,
+        y,
         active: true,
+        speed: Math.min(45, moveDist),
       };
     };
 
-    const onMouseLeave = () => {
+    const onPointerMove = (e: PointerEvent) => {
+      updatePointer(e.clientX, e.clientY);
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (t) updatePointer(t.clientX, t.clientY);
+    };
+
+    const onPointerLeave = () => {
       pointerRef.current.active = false;
     };
 
@@ -254,18 +303,21 @@ export const ParticleFieldCanvas: React.FC<ParticleFieldCanvasProps> = ({
 
     initParticles();
     drawFrame();
-    scheduleNextFrame();
+    if (!prefersReducedMotion) {
+      rafId = window.requestAnimationFrame(animate);
+    }
 
-    window.addEventListener('mousemove', onMouseMove, { passive: true });
-    window.addEventListener('mouseleave', onMouseLeave);
+    window.addEventListener('pointermove', onPointerMove, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('mouseleave', onPointerLeave);
     window.addEventListener('resize', onResize);
 
     return () => {
       disposed = true;
-      if (timerId !== null) window.clearTimeout(timerId);
       if (rafId !== null) window.cancelAnimationFrame(rafId);
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseleave', onMouseLeave);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('mouseleave', onPointerLeave);
       window.removeEventListener('resize', onResize);
     };
   }, [theme, variant]);

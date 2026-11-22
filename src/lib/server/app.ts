@@ -323,6 +323,92 @@ export function createApiApp() {
     });
   }));
 
+  // Dedicated SSRF-verified live browser screenshot capture (separate serverless call to prevent timeouts)
+  app.post('/api/scans/screenshot', asyncHandler(async (req, res) => {
+    const user = await verifyRequestAuth(req);
+    const rateKey = `shot:${user?.uid || req.ip || 'anon'}`;
+    if (!checkRateLimit(rateKey, user ? 30 : 12, 10 * 60 * 1000)) {
+      res.json({ available: false, source: 'unavailable', error: 'Screenshot rate limit reached.' });
+      return;
+    }
+
+    const rawUrl = typeof req.body?.targetUrl === 'string' ? req.body.targetUrl.trim() : '';
+    const validated = validateTargetUrl(rawUrl);
+    if (!validated.valid || !validated.normalizedUrl || !validated.hostname) {
+      res.status(400).json({ available: false, source: 'unavailable', error: validated.error || 'Invalid target URL.' });
+      return;
+    }
+
+    const resolved = await resolveAndVerifyHost(validated.hostname);
+    if (!resolved.safe) {
+      res.status(400).json({ available: false, source: 'unavailable', error: resolved.error || 'SSRF policy blocked screenshot target.' });
+      return;
+    }
+
+    try {
+      const apiUrl = new URL('https://api.microlink.io/');
+      apiUrl.searchParams.set('url', validated.normalizedUrl);
+      apiUrl.searchParams.set('screenshot', 'true');
+      apiUrl.searchParams.set('meta', 'false');
+      apiUrl.searchParams.set('viewport.width', '1280');
+      apiUrl.searchParams.set('viewport.height', '800');
+      apiUrl.searchParams.set('waitUntil', 'networkidle2');
+
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 14500);
+      const mlRes = await fetch(apiUrl.toString(), {
+        signal: controller.signal,
+        headers: { Accept: 'application/json' },
+      });
+      clearTimeout(timer);
+
+      if (!mlRes.ok) {
+        res.json({
+          available: false,
+          source: 'unavailable',
+          error: `Live capture service returned HTTP ${mlRes.status}.`,
+        });
+        return;
+      }
+
+      const payload = (await mlRes.json()) as {
+        status?: string;
+        data?: {
+          url?: string;
+          screenshot?: { url?: string; width?: number; height?: number };
+        };
+      };
+
+      const shotUrl = payload?.data?.screenshot?.url;
+      if (payload?.status === 'success' && typeof shotUrl === 'string' && shotUrl.startsWith('https://')) {
+        res.json({
+          available: true,
+          source: 'microlink',
+          imageUrl: shotUrl,
+          width: payload.data?.screenshot?.width ?? 1280,
+          height: payload.data?.screenshot?.height ?? 800,
+          finalUrl: payload.data?.url || validated.normalizedUrl,
+          capturedAt: new Date().toISOString(),
+        });
+        return;
+      }
+
+      res.json({
+        available: false,
+        source: 'unavailable',
+        error: 'Target page prevented automated browser capture.',
+      });
+    } catch (err) {
+      res.json({
+        available: false,
+        source: 'unavailable',
+        error: err instanceof Error && err.name === 'AbortError'
+          ? 'Live browser screenshot timed out.'
+          : 'Live screenshot service temporarily unreachable.',
+      });
+    }
+  }));
+
   app.get('/api/scans/:scanId/progress', asyncHandler(async (req, res) => {
     const user = await verifyRequestAuth(req);
     const job = getJobState(req.params.scanId);

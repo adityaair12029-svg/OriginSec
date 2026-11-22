@@ -29,6 +29,7 @@ export interface SecurityAnalysisInput {
   hasSecurityTxt: boolean;
   hasRobotsTxt: boolean;
   hasSitemapXml: boolean;
+  sensitivePathsExposed?: string[];
 }
 
 export interface FrontendAnalysisInput {
@@ -826,6 +827,50 @@ export function analyzeAllCategories(
       verification: 'Verify /.well-known/security.txt returns HTTP 200.',
       status: 'open',
     });
+  }
+
+  // 1i. Sensitive File & Metadata Exposure (/.env, /.git/HEAD)
+  if (Array.isArray(secInput.sensitivePathsExposed)) {
+    const exposed = [...secInput.sensitivePathsExposed].sort();
+    if (exposed.length > 0) {
+      push({
+        ruleId: 'SEC_EXPOSED_SENSITIVE_PATHS',
+        subCategory: 'infrastructure',
+        confidence: 'verified_direct',
+        category: 'security',
+        title: 'Sensitive Configuration or VCS File Publicly Accessible',
+        severity: 'critical',
+        priorityGroup: 'fix_immediately',
+        description: `Passive probe detected ${exposed.length} sensitive configuration or source metadata path(s) returning HTTP 200 content.`,
+        evidence: `Exposed path(s): ${exposed.join(', ')}`,
+        affectedUrl: secInput.finalUrl,
+        observedValue: exposed.join(', '),
+        impact: 'Exposed .env files or .git repositories can disclose database credentials, API keys, and proprietary source code.',
+        recommendation: 'Block public HTTP access to hidden dotfiles (/.env, /.git) at the web server or CDN edge immediately and rotate any exposed secrets.',
+        remediation: 'location ~ /\\. { deny all; return 404; }',
+        verification: 'Confirm GET /.env and GET /.git/HEAD return HTTP 403 or 404.',
+        status: 'open',
+      });
+    } else {
+      push({
+        ruleId: 'SEC_EXPOSED_SENSITIVE_PATHS',
+        subCategory: 'infrastructure',
+        confidence: 'verified_direct',
+        category: 'security',
+        title: 'Common Sensitive Paths Protected (/.env & /.git)',
+        severity: 'passed',
+        priorityGroup: 'best_practice',
+        description: 'Passive probes verified /.env and /.git/HEAD do not expose secret keys or repository metadata.',
+        evidence: 'GET /.env and GET /.git/HEAD did not return exposed configuration or git refs.',
+        affectedUrl: secInput.finalUrl,
+        observedValue: 'Protected (Not Exposed)',
+        impact: 'Reduces accidental credential and source-code leakage.',
+        recommendation: 'Keep dotfile blocking rules enforced across all environments.',
+        remediation: 'No action required.',
+        verification: 'Verified via passive path probes.',
+        status: 'passed',
+      });
+    }
   }
 
   // =========================================================================

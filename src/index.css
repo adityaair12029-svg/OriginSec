@@ -58,6 +58,116 @@ code, pre, .font-mono {
   }
 }
 
+@keyframes slidingLightSweep {
+  0% {
+    transform: translateX(-160%) skewX(-22deg);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.75;
+  }
+  65% {
+    opacity: 0.55;
+  }
+  100% {
+    transform: translateX(260%) skewX(-22deg);
+    opacity: 0;
+  }
+}
+
+@keyframes borderGlowSlide {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
 .animate-fade-up {
   animation: fadeInUp 260ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.btn-lighting {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.btn-lighting::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 48%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.42) 50%,
+    transparent 100%
+  );
+  transform: translateX(-160%) skewX(-22deg);
+  pointer-events: none;
+  animation: slidingLightSweep 3.4s cubic-bezier(0.25, 0.8, 0.25, 1) infinite;
+}
+
+.card-lighting {
+  position: relative;
+}
+
+.card-lighting::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: linear-gradient(
+    115deg,
+    rgba(66, 133, 244, 0.72),
+    rgba(234, 67, 53, 0.55),
+    rgba(251, 188, 5, 0.6),
+    rgba(52, 168, 83, 0.65),
+    rgba(66, 133, 244, 0.72)
+  );
+  background-size: 260% 260%;
+  animation: borderGlowSlide 5s ease infinite;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.78;
+  transition: opacity 200ms ease;
+}
+
+.card-lighting:focus-within::before,
+.card-lighting:hover::before {
+  opacity: 1;
+}
+
+@keyframes themeBeamSweep {
+  0% {
+    transform: translateX(-110%) skewX(-18deg);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateX(140%) skewX(-18deg);
+    opacity: 0;
+  }
+}
+
+.theme-switch-beam {
+  animation: themeBeamSweep 620ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-lighting::after,
+  .card-lighting::before,
+  .theme-switch-beam {
+    animation: none;
+  }
 }

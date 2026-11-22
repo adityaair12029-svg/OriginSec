@@ -15,24 +15,30 @@ export const OriginSecMark: React.FC<OriginSecMarkProps> = ({ theme, className =
       ? theme === 'dark'
       : typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
 
+  // Mount BOTH theme logos simultaneously with eager loading so theme toggle swaps instantly with 0 fetch delay.
   return (
     <span
-      className={`inline-flex items-center justify-center overflow-hidden shrink-0 select-none ${className}`}
+      className={`relative inline-flex items-center justify-center overflow-hidden shrink-0 select-none ${className}`}
       aria-hidden="true"
     >
-      {isDark ? (
-        <img
-          src={DARK_LOGO_SRC}
-          alt=""
-          className="w-full h-full object-cover object-[50%_52%] scale-[1.58] mix-blend-screen contrast-125 brightness-110 [mask-image:radial-gradient(circle,black_55%,transparent_82%)] pointer-events-none"
-        />
-      ) : (
-        <img
-          src={LIGHT_LOGO_SRC}
-          alt=""
-          className="w-full h-full object-contain scale-[1.08] mix-blend-multiply pointer-events-none"
-        />
-      )}
+      <img
+        src={LIGHT_LOGO_SRC}
+        alt=""
+        loading="eager"
+        decoding="sync"
+        className={`absolute inset-0 w-full h-full object-contain mix-blend-multiply contrast-125 [mask-image:radial-gradient(circle,black_58%,transparent_88%)] pointer-events-none transition-all duration-150 ${
+          isDark ? 'opacity-0 scale-95' : 'opacity-100 scale-[1.08]'
+        }`}
+      />
+      <img
+        src={DARK_LOGO_SRC}
+        alt=""
+        loading="eager"
+        decoding="sync"
+        className={`absolute inset-0 w-full h-full object-cover object-[50%_52%] mix-blend-screen contrast-125 brightness-110 [mask-image:radial-gradient(circle,black_55%,transparent_82%)] pointer-events-none transition-all duration-150 ${
+          isDark ? 'opacity-100 scale-[1.58]' : 'opacity-0 scale-[1.45]'
+        }`}
+      />
     </span>
   );
 };

@@ -164,6 +164,17 @@ export interface ExtendedFrontendMetrics {
   pageTitle: string | null;
 }
 
+export interface ScreenshotCaptureInfo {
+  available: boolean;
+  imageUrl?: string;
+  width?: number;
+  height?: number;
+  capturedAt?: string;
+  finalUrl?: string;
+  source?: 'microlink' | 'unavailable';
+  error?: string;
+}
+
 export interface ScanMetrics {
   ttfbMs: number;
   totalResponseTimeMs: number;
@@ -196,6 +207,7 @@ export interface ScanMetrics {
     title: string | null;
     ttfbMs: number;
   }>;
+  screenshot?: ScreenshotCaptureInfo;
 }
 
 export interface ScanFinding {

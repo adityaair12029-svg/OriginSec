@@ -507,3 +507,88 @@ test('verifyFirebaseJwtWithCerts validates RS256 Firebase JWT claims without jwk
   assert.equal(verifyFirebaseJwtWithCerts(tamperedToken, projectId, certs, now), null);
 });
 
+test('analyzeAllCategories detects exposed dotfiles via SEC_EXPOSED_SENSITIVE_PATHS and passes when blocked', () => {
+  const coverage = makeCoverage();
+  const baseFetch = {
+    scanId: 'scan_sec_1',
+    ownerUid: 'user_1',
+    targetUrl: 'https://example.com/',
+    finalUrl: 'https://example.com/',
+    html: '<!doctype html><html lang="en"><head><title>Sec Test</title></head><body><h1>Hello</h1></body></html>',
+    htmlSizeBytes: 95,
+    ttfbMs: 120,
+    warmTtfbMs: 110,
+    totalResponseTimeMs: 180,
+    statusCode: 200,
+    redirectCount: 0,
+    headers: { 'content-type': 'text/html' },
+    brokenInternalLinks: [],
+    brokenImages: [],
+    lighthouse: { available: false, source: 'not_configured' as const, strategy: 'mobile' as const, dataType: 'none' as const },
+  };
+
+  const makeSecInput = (sensitivePathsExposed: string[]) => ({
+    scanId: 'scan_sec_1',
+    ownerUid: 'user_1',
+    targetUrl: 'https://example.com/',
+    finalUrl: 'https://example.com/',
+    isHttps: true,
+    httpRedirectsToHttps: true,
+    headers: { 'content-type': 'text/html' },
+    setCookieHeaders: [],
+    tls: {
+      available: true,
+      authorized: true,
+      protocol: 'TLSv1.3',
+      cipher: 'TLS_AES_256_GCM_SHA384',
+      issuer: 'DigiCert',
+      subject: 'example.com',
+      validFrom: '2026-01-01T00:00:00Z',
+      validTo: '2027-01-01T00:00:00Z',
+      hostnameMatch: true,
+      daysRemaining: 90,
+    },
+    dns: { resolved: true, aRecords: ['93.184.216.34'], aaaaRecords: [], mxRecords: [], txtRecords: [], caaRecords: [], hasSpf: true, hasDmarc: true },
+    mixedContentUrls: [],
+    hasSecurityTxt: true,
+    hasRobotsTxt: true,
+    hasSitemapXml: true,
+    sensitivePathsExposed,
+  });
+
+  const exposed = analyzeAllCategories(makeSecInput(['/.env']), baseFetch, coverage);
+  const exposedFinding = exposed.findings.find((f) => f.ruleId === 'SEC_EXPOSED_SENSITIVE_PATHS');
+  assert.ok(exposedFinding);
+  assert.equal(exposedFinding.severity, 'critical');
+  assert.equal(exposedFinding.status, 'open');
+
+  const clean = analyzeAllCategories(makeSecInput([]), baseFetch, coverage);
+  const cleanFinding = clean.findings.find((f) => f.ruleId === 'SEC_EXPOSED_SENSITIVE_PATHS');
+  assert.ok(cleanFinding);
+  assert.equal(cleanFinding.severity, 'passed');
+  assert.equal(cleanFinding.status, 'passed');
+});
+
+test('POST /api/scans/screenshot blocks private loopback targets via SSRF policy', async () => {
+  const app = createApiApp();
+  const server = http.createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  assert.ok(address && typeof address === 'object');
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  try {
+    const res = await fetch(`${baseUrl}/api/scans/screenshot`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetUrl: 'http://127.0.0.1/' }),
+    });
+    assert.equal(res.status, 400);
+    const body = (await res.json()) as { available?: boolean; error?: string };
+    assert.equal(body.available, false);
+    assert.ok(typeof body.error === 'string' && body.error.length > 0);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+

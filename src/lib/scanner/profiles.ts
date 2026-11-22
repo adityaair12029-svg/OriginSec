@@ -80,6 +80,7 @@ export const ORDERED_PROGRESS_STAGES = [
   'Evaluating frontend & accessibility',
   'Auditing backend & performance',
   'Evaluating SEO & engagement',
+  'Capturing live browser screenshot',
   'Computing deterministic scores',
   'Generating audit report',
 ] as const;

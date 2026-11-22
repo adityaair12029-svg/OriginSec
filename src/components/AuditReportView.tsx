@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
+  Camera,
   ChevronDown,
   ChevronUp,
   ExternalLink,
@@ -421,6 +422,65 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
           </div>
         ))}
       </div>
+
+      {/* Live Browser Screenshot Verification */}
+      {scan.metrics?.screenshot && (
+        <section
+          aria-label="Live Browser Screenshot"
+          className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] overflow-hidden"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-[#E5E7EB] dark:border-white/[0.08] bg-[#F7F8FA] dark:bg-[#13151B]">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Camera className="w-4 h-4 text-[#2F75C3] dark:text-[#2F71E3] shrink-0" />
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-[#0A0A0C] dark:text-white">
+                  Live Browser Capture
+                </h2>
+                <p className="text-xs font-mono text-[#5A606E] dark:text-[#9499A6] truncate">
+                  {scan.metrics.screenshot.finalUrl || scan.metrics.finalUrl || scan.targetUrl}
+                  {scan.metrics.screenshot.width && scan.metrics.screenshot.height
+                    ? ` · ${scan.metrics.screenshot.width}×${scan.metrics.screenshot.height}`
+                    : ''}
+                </p>
+              </div>
+            </div>
+
+            {scan.metrics.screenshot.available && scan.metrics.screenshot.imageUrl && (
+              <a
+                href={scan.metrics.screenshot.imageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium border border-[#E5E7EB] dark:border-white/[0.12] bg-white dark:bg-[#101115] text-[#0A0A0C] dark:text-white hover:border-[#2F75C3] dark:hover:border-[#2F71E3] transition-colors"
+              >
+                Open full screenshot
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            )}
+          </div>
+
+          {scan.metrics.screenshot.available && scan.metrics.screenshot.imageUrl ? (
+            <div className="p-4 sm:p-6 bg-[#F1F3F6]/60 dark:bg-[#090A0D]">
+              <div className="rounded-xl overflow-hidden border border-[#E5E7EB] dark:border-white/[0.1] shadow-sm bg-white dark:bg-[#0D0E12]">
+                <img
+                  src={scan.metrics.screenshot.imageUrl}
+                  alt={`Live screenshot of ${scan.normalizedDomain}`}
+                  loading="lazy"
+                  className="w-full max-h-[460px] object-cover object-top"
+                />
+              </div>
+              {scan.metrics.screenshot.capturedAt && (
+                <p className="mt-2.5 text-[11px] font-mono text-[#5A606E] dark:text-[#9499A6]">
+                  Captured live at {new Date(scan.metrics.screenshot.capturedAt).toLocaleString()}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="px-6 py-5 text-xs text-[#5A606E] dark:text-[#9499A6]">
+              Live screenshot unavailable for this target: {scan.metrics.screenshot.error || 'Target blocked automated browser rendering.'}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Report Sub-Navigation Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E5E7EB] dark:border-white/[0.08] pb-3">

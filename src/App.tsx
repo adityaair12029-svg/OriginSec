@@ -145,7 +145,10 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [universalQuery, setUniversalQuery] = useState('');
 
+  const [themeSweepId, setThemeSweepId] = useState(0);
+
   const pollTimerRef = useRef<number | null>(null);
+  const scanCancelledRef = useRef<boolean>(false);
 
   // Sync theme class on <html>
   useEffect(() => {
@@ -177,6 +180,7 @@ export default function App() {
   }, []);
 
   const handleToggleTheme = useCallback(() => {
+    setThemeSweepId((v) => v + 1);
     setTheme((prev) => {
       const next: ThemeMode = prev === 'dark' ? 'light' : 'dark';
       if (user) {
@@ -377,6 +381,7 @@ export default function App() {
     crawlDepth?: number;
   }) => {
     stopPolling();
+    scanCancelledRef.current = false;
     setScanSubmitError(null);
     setAiError(null);
     setIsSubmittingScan(true);
@@ -386,11 +391,12 @@ export default function App() {
     const maxPages = params.maxPages ?? profileDef.maxPages;
     const crawlDepth = params.crawlDepth ?? profileDef.crawlDepth;
 
+    let normalizedAttempt = params.targetUrl.trim();
+    if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(normalizedAttempt)) {
+      normalizedAttempt = `https://${normalizedAttempt}`;
+    }
     let targetHostname = '';
     try {
-      const normalizedAttempt = /^https?:\/\//i.test(params.targetUrl.trim())
-        ? params.targetUrl.trim()
-        : `https://${params.targetUrl.trim()}`;
       targetHostname = new URL(normalizedAttempt).hostname.toLowerCase();
     } catch {
       targetHostname = '';
@@ -398,6 +404,18 @@ export default function App() {
 
     const isVercelClient =
       typeof window !== 'undefined' && window.location.hostname.endsWith('.vercel.app');
+
+    // Immediately open methodical ScanProgressView so user watches every verification phase
+    setActiveProgress({
+      scanId: 'initializing',
+      targetUrl: normalizedAttempt,
+      normalizedDomain: targetHostname || params.targetUrl,
+      status: 'running',
+      currentStage: ORDERED_PROGRESS_STAGES[0],
+      progressPercent: 6,
+      stagesLog: [],
+    });
+    setRoute('scan');
 
     let syncTicker: number | null = null;
     const clearSyncTicker = () => {
@@ -407,35 +425,38 @@ export default function App() {
       }
     };
 
-    if (isVercelClient) {
-      let idx = 0;
-      setActiveProgress({
-        scanId: 'pending',
-        targetUrl: params.targetUrl,
-        normalizedDomain: targetHostname || params.targetUrl,
-        status: 'running',
-        currentStage: ORDERED_PROGRESS_STAGES[0],
-        progressPercent: 10,
-        stagesLog: [],
-      });
-      setRoute('scan');
-      syncTicker = window.setInterval(() => {
-        idx = Math.min(ORDERED_PROGRESS_STAGES.length - 2, idx + 1);
-        setActiveProgress((prev) =>
-          prev
-            ? {
-                ...prev,
-                currentStage: ORDERED_PROGRESS_STAGES[idx],
-                progressPercent: Math.min(92, Math.round(((idx + 1) / ORDERED_PROGRESS_STAGES.length) * 95)),
-              }
-            : prev
-        );
-      }, 950);
-    }
-
     try {
       const token = await getAuthToken();
       const isDomainVerified = verifiedDomains.some((d) => d.verified && d.domain === targetHostname);
+
+      // Start live browser screenshot capture in parallel as an independent SSRF-safe call
+      const screenshotPromise = fetch('/api/scans/screenshot', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ targetUrl: normalizedAttempt }),
+      })
+        .then((r) => parseJsonSafe<any>(r))
+        .then(({ data }) => data)
+        .catch(() => ({ available: false, source: 'unavailable', error: 'Screenshot request skipped.' }));
+
+      if (isVercelClient) {
+        let idx = 0;
+        syncTicker = window.setInterval(() => {
+          idx = Math.min(ORDERED_PROGRESS_STAGES.length - 4, idx + 1);
+          setActiveProgress((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  currentStage: ORDERED_PROGRESS_STAGES[idx],
+                  progressPercent: Math.min(78, 8 + idx * 7),
+                }
+              : prev
+          );
+        }, 780);
+      }
 
       const res = await fetch('/api/scans', {
         method: 'POST',
@@ -481,14 +502,96 @@ export default function App() {
 
       const activeUser = user || auth?.currentUser || null;
 
-      // Synchronous completion path (Vercel Serverless or ?sync=true)
-      if ((data.status === 'completed' || data.status === 'partially_completed') && data.result) {
-        const finalReport: WebsiteScan = data.result;
-        await handlePostScanPersistence(finalReport, activeUser);
-        setSelectedReport(finalReport);
+      // Helper: walk through verified stages & await real browser screenshot capture before opening report
+      const finalizeAndRevealReport = async (rawReport: WebsiteScan) => {
+        if (scanCancelledRef.current) return;
+        const baseLogs = [...(rawReport.stagesLog || [])];
+        setActiveProgress((prev) => ({
+          scanId: rawReport.scanId,
+          targetUrl: rawReport.targetUrl,
+          normalizedDomain: rawReport.normalizedDomain,
+          status: 'running',
+          currentStage: 'Capturing live browser screenshot',
+          progressPercent: 86,
+          stagesLog: baseLogs.length > 0 ? baseLogs.slice(0, Math.min(baseLogs.length, 6)) : prev?.stagesLog || [],
+        }));
+
+        // Step smoothly through any verified server stage logs so user can read every probe
+        for (let i = 6; i < baseLogs.length; i++) {
+          if (scanCancelledRef.current) return;
+          await new Promise((r) => window.setTimeout(r, 680));
+          if (scanCancelledRef.current) return;
+          const pct = Math.min(94, 72 + Math.round(((i - 5) / Math.max(1, baseLogs.length - 5)) * 20));
+          setActiveProgress((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  currentStage: baseLogs[i].stage,
+                  progressPercent: pct,
+                  stagesLog: baseLogs.slice(0, i + 1),
+                }
+              : prev
+          );
+        }
+
+        if (scanCancelledRef.current) return;
+
+        // Wait for live headless screenshot result
+        setActiveProgress((prev) =>
+          prev
+            ? {
+                ...prev,
+                currentStage: 'Capturing live browser screenshot',
+                progressPercent: 95,
+              }
+            : prev
+        );
+        const shotData = await screenshotPromise;
+        if (scanCancelledRef.current) return;
+
+        const screenshotLogEntry = {
+          stage: 'Capturing live browser screenshot',
+          status: 'completed' as const,
+          detail: shotData?.available
+            ? `Captured live ${shotData.width || 1280}×${shotData.height || 800} browser preview`
+            : shotData?.error || 'Live screenshot unavailable for target; text & protocol audit verified',
+          timestamp: new Date().toISOString(),
+        };
+
+        const enrichedReport: WebsiteScan = {
+          ...rawReport,
+          metrics: {
+            ...rawReport.metrics,
+            screenshot: shotData || { available: false, source: 'unavailable' },
+          },
+          stagesLog: [...baseLogs, screenshotLogEntry],
+        };
+
+        setActiveProgress((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: enrichedReport.status,
+                currentStage: 'Generating audit report',
+                progressPercent: 100,
+                stagesLog: enrichedReport.stagesLog || [],
+              }
+            : prev
+        );
+        await new Promise((r) => window.setTimeout(r, 650));
+        if (scanCancelledRef.current) return;
+
+        await handlePostScanPersistence(enrichedReport, activeUser);
+        if (scanCancelledRef.current) return;
+        setSelectedReport(enrichedReport);
         setActiveProgress(null);
         setRoute('report');
         setIsSubmittingScan(false);
+      };
+
+      // Synchronous completion path (Vercel Serverless or ?sync=true)
+      if ((data.status === 'completed' || data.status === 'partially_completed') && data.result) {
+        await finalizeAndRevealReport(data.result as WebsiteScan);
         return;
       }
 
@@ -501,7 +604,6 @@ export default function App() {
         progressPercent: data.progressPercent,
         stagesLog: data.stagesLog || [],
       });
-      setRoute('scan');
       setIsSubmittingScan(false);
 
       let notFoundCount = 0;
@@ -538,38 +640,33 @@ export default function App() {
             return;
           }
 
+          if (pData.status === 'completed' || pData.status === 'partially_completed') {
+            await finalizeAndRevealReport(pData.result as WebsiteScan);
+            return;
+          }
+
           setActiveProgress({
             scanId: pData.scanId,
             targetUrl: data.targetUrl,
             normalizedDomain: data.normalizedDomain,
             status: pData.status,
             currentStage: pData.currentStage,
-            progressPercent: pData.progressPercent,
+            progressPercent: Math.min(88, pData.progressPercent ?? 40),
             stagesLog: pData.stagesLog || [],
             error: pData.error,
           });
-
-          if (pData.status === 'completed' || pData.status === 'partially_completed') {
-            const finalReport: WebsiteScan = pData.result;
-            const currentUser = user || auth?.currentUser || null;
-            await handlePostScanPersistence(finalReport, currentUser);
-            setSelectedReport(finalReport);
-            setActiveProgress(null);
-            setRoute('report');
-            return;
-          }
 
           if (pData.status === 'failed' || pData.status === 'cancelled') {
             return;
           }
 
-          pollTimerRef.current = window.setTimeout(pollProgress, 550);
+          pollTimerRef.current = window.setTimeout(pollProgress, 650);
         } catch {
           pollTimerRef.current = window.setTimeout(pollProgress, 1000);
         }
       };
 
-      pollTimerRef.current = window.setTimeout(pollProgress, 450);
+      pollTimerRef.current = window.setTimeout(pollProgress, 550);
     } catch (err) {
       clearSyncTicker();
       setActiveProgress(null);
@@ -580,6 +677,8 @@ export default function App() {
   };
 
   const handleCancelActiveScan = async () => {
+    scanCancelledRef.current = true;
+    setIsSubmittingScan(false);
     if (!activeProgress) return;
     stopPolling();
     const token = await getAuthToken();
@@ -798,7 +897,16 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen flex flex-col bg-[#FFFFFF] dark:bg-[#070708] text-[#0A0A0C] dark:text-white transition-colors duration-200">
+      <div className="relative min-h-screen flex flex-col bg-[#FFFFFF] dark:bg-[#070708] text-[#0A0A0C] dark:text-white transition-colors duration-200 overflow-x-hidden">
+        {themeSweepId > 0 && (
+          <div
+            key={themeSweepId}
+            aria-hidden="true"
+            className="pointer-events-none fixed inset-0 z-50 overflow-hidden"
+          >
+            <div className="theme-switch-beam h-full w-1/2 bg-gradient-to-r from-transparent via-[#4285F4]/18 to-transparent" />
+          </div>
+        )}
         <Header
           theme={theme}
           onToggleTheme={handleToggleTheme}
@@ -891,6 +999,8 @@ export default function App() {
             progress={activeProgress}
             onCancel={handleCancelActiveScan}
             onBackHome={() => {
+              scanCancelledRef.current = true;
+              setIsSubmittingScan(false);
               stopPolling();
               setActiveProgress(null);
               setRoute('home');

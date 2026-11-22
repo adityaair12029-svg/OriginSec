@@ -850,11 +850,11 @@ async function executeScanJob(
       throw new Error(homeFirst.error || 'Unable to connect to target website.');
     }
 
-    // Warm TTFB probe when initial probe > 400ms to remove TCP/TLS handshake jitter
+    // Warm TTFB probe to separate cold TLS/TCP connection cost from steady-state latency
     let warmTtfbMs = homeFirst.ttfbMs;
-    if (homeFirst.ttfbMs > 400 && (!deadlineMs || remainingMs() > 5000)) {
+    if (!deadlineMs || remainingMs() > 5000) {
       const warmProbe = await safeFetchText(homeFirst.finalUrl, {
-        timeoutMs: 4000,
+        timeoutMs: 3500,
         maxBytes: 1024,
         method: 'HEAD',
       }).catch(() => null);
@@ -871,14 +871,16 @@ async function executeScanJob(
     );
     if (job.cancelled) return;
 
-    // 3. Auxiliary policy files with deterministic single-retry resilience
+    // 3. Auxiliary policy files & passive dotfile exposure checks
     updateJob(scanId, 'Fetching auxiliary policy files', 56);
     const origin = new URL(homeFirst.finalUrl).origin;
     const auxTimeout = deadlineMs ? Math.min(3500, Math.max(1500, remainingMs() - 3000)) : 4000;
-    const [robotsRes, secTxtRes, sitemapRes] = await Promise.all([
+    const [robotsRes, secTxtRes, sitemapRes, envProbeRes, gitProbeRes] = await Promise.all([
       fetchWithSingleRetry(`${origin}/robots.txt`, { timeoutMs: auxTimeout, maxBytes: 65536 }),
       fetchWithSingleRetry(`${origin}/.well-known/security.txt`, { timeoutMs: auxTimeout, maxBytes: 65536 }),
       fetchWithSingleRetry(`${origin}/sitemap.xml`, { timeoutMs: auxTimeout, maxBytes: 131072 }),
+      safeFetchText(`${origin}/.env`, { timeoutMs: auxTimeout, maxBytes: 8192 }),
+      safeFetchText(`${origin}/.git/HEAD`, { timeoutMs: auxTimeout, maxBytes: 4096 }),
     ]);
 
     const hasRobotsTxt = robotsRes.ok && robotsRes.statusCode === 200;
@@ -889,11 +891,28 @@ async function executeScanJob(
       secTxtRes.body.toLowerCase().includes('contact:');
     const hasSitemapXml = sitemapRes.ok && sitemapRes.statusCode === 200;
 
+    const sensitivePathsExposed: string[] = [];
+    if (
+      envProbeRes.ok &&
+      envProbeRes.statusCode === 200 &&
+      !/<!doctype html|<html/i.test(envProbeRes.body) &&
+      /^[A-Z0-9_]{2,40}=/m.test(envProbeRes.body)
+    ) {
+      sensitivePathsExposed.push('/.env');
+    }
+    if (
+      gitProbeRes.ok &&
+      gitProbeRes.statusCode === 200 &&
+      /^(ref:\s*refs\/|[0-9a-f]{40}\b)/i.test(gitProbeRes.body.trim())
+    ) {
+      sensitivePathsExposed.push('/.git/HEAD');
+    }
+
     updateJob(
       scanId,
       'Fetching auxiliary policy files',
       62,
-      `robots.txt=${hasRobotsTxt}, security.txt=${hasSecurityTxt}, sitemap.xml=${hasSitemapXml}`
+      `robots.txt=${hasRobotsTxt}, security.txt=${hasSecurityTxt}, sitemap.xml=${hasSitemapXml}, exposedPaths=${sensitivePathsExposed.length}`
     );
 
     // 4. Homepage DOM + Mixed Content Inspection
@@ -1061,6 +1080,7 @@ async function executeScanJob(
         hasSecurityTxt,
         hasRobotsTxt,
         hasSitemapXml,
+        sensitivePathsExposed,
       },
       {
         scanId,
