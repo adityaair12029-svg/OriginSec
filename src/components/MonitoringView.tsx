@@ -92,21 +92,21 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-[#151515] dark:text-white">Continuous Monitoring</h1>
-        <p className="text-sm text-[#777267] dark:text-[#929292]">
+        <h1 className="text-2xl font-bold text-[#0A0A0C] dark:text-white">Continuous Monitoring</h1>
+        <p className="text-sm text-[#5A606E] dark:text-[#9499A6]">
           Track live HTTP availability, response time, and SSL/TLS certificate expiry. Scheduled execution runs via server cron integration, plus on-demand live checks below.
         </p>
       </div>
 
       {!isAuthenticated && (
-        <div className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <p className="text-sm text-[#777267] dark:text-[#929292]">
+        <div className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <p className="text-sm text-[#5A606E] dark:text-[#9499A6]">
             Sign in with Google to persist monitoring targets and view incident history.
           </p>
           <button
             type="button"
             onClick={onSignIn}
-            className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#151515] text-white dark:bg-white dark:text-[#050505] cursor-pointer whitespace-nowrap"
+            className="px-4 py-2 rounded-full text-xs font-semibold bg-[#2F75C3] dark:bg-[#2F71E3] text-white cursor-pointer whitespace-nowrap"
           >
             Sign in with Google
           </button>
@@ -116,12 +116,12 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
       {/* Add Monitoring Target Form */}
       <form
         onSubmit={handleAdd}
-        className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-6 space-y-4"
+        className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-6 space-y-4"
       >
-        <h2 className="text-sm font-bold text-[#151515] dark:text-white">Configure Monitoring Target</h2>
+        <h2 className="text-sm font-bold text-[#0A0A0C] dark:text-white">Configure Monitoring Target</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="md:col-span-2 space-y-1">
-            <label htmlFor="monitor-url" className="block text-xs font-medium text-[#777267] dark:text-[#929292]">
+            <label htmlFor="monitor-url" className="block text-xs font-medium text-[#5A606E] dark:text-[#9499A6]">
               Website URL
             </label>
             <input
@@ -130,18 +130,18 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
               value={targetUrl}
               onChange={(e) => setTargetUrl(e.target.value)}
               placeholder="https://example.com"
-              className="w-full px-4 py-2.5 rounded-xl text-sm border border-[#E7E0D3] dark:border-[#252525] bg-[#FAF9F5] dark:bg-[#101010] text-[#151515] dark:text-white"
+              className="w-full px-4 py-2.5 rounded-xl text-sm border border-[#E5E7EB] dark:border-white/[0.1] bg-[#F7F8FA] dark:bg-[#13151B] text-[#0A0A0C] dark:text-white"
             />
           </div>
           <div className="space-y-1">
-            <label htmlFor="monitor-freq" className="block text-xs font-medium text-[#777267] dark:text-[#929292]">
+            <label htmlFor="monitor-freq" className="block text-xs font-medium text-[#5A606E] dark:text-[#9499A6]">
               Check Interval
             </label>
             <select
               id="monitor-freq"
               value={frequencyMinutes}
               onChange={(e) => setFrequencyMinutes(Number(e.target.value))}
-              className="w-full px-3 py-2.5 rounded-xl text-sm border border-[#E7E0D3] dark:border-[#252525] bg-[#FAF9F5] dark:bg-[#101010] text-[#151515] dark:text-white"
+              className="w-full px-3 py-2.5 rounded-xl text-sm border border-[#E5E7EB] dark:border-white/[0.1] bg-[#F7F8FA] dark:bg-[#13151B] text-[#0A0A0C] dark:text-white"
             >
               <option value={5}>Every 5 minutes</option>
               <option value={15}>Every 15 minutes</option>
@@ -154,7 +154,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
           <div className="space-y-1">
-            <label htmlFor="monitor-webhook" className="block text-xs font-medium text-[#777267] dark:text-[#929292]">
+            <label htmlFor="monitor-webhook" className="block text-xs font-medium text-[#5A606E] dark:text-[#9499A6]">
               Alert Webhook URL (optional)
             </label>
             <input
@@ -163,15 +163,15 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
               value={webhookUrl}
               onChange={(e) => setWebhookUrl(e.target.value)}
               placeholder="https://hooks.example.com/..."
-              className="w-full px-4 py-2 rounded-xl text-xs border border-[#E7E0D3] dark:border-[#252525] bg-[#FAF9F5] dark:bg-[#101010] text-[#151515] dark:text-white"
+              className="w-full px-4 py-2 rounded-xl text-xs border border-[#E5E7EB] dark:border-white/[0.1] bg-[#F7F8FA] dark:bg-[#13151B] text-[#0A0A0C] dark:text-white"
             />
           </div>
-          <label className="inline-flex items-center gap-2 text-xs text-[#777267] dark:text-[#929292] pt-4 cursor-pointer">
+          <label className="inline-flex items-center gap-2 text-xs text-[#5A606E] dark:text-[#9499A6] pt-4 cursor-pointer">
             <input
               type="checkbox"
               checked={alertEmail}
               onChange={(e) => setAlertEmail(e.target.checked)}
-              className="w-4 h-4 accent-[#008C55] dark:accent-[#00E69A]"
+              className="w-4 h-4 accent-[#2F75C3] dark:accent-[#2F71E3]"
             />
             <span>Send email alert notifications on downtime or TLS expiry &lt; 14 days</span>
           </label>
@@ -187,7 +187,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
         <button
           type="submit"
           disabled={submitting}
-          className="px-5 py-2.5 rounded-xl text-xs font-semibold bg-[#151515] text-white dark:bg-white dark:text-[#050505] hover:opacity-90 disabled:opacity-50 cursor-pointer"
+          className="px-5 py-2.5 rounded-full text-xs font-semibold bg-[#2F75C3] dark:bg-[#2F71E3] text-white hover:opacity-95 disabled:opacity-50 cursor-pointer"
         >
           {submitting ? 'Saving target...' : 'Add Monitoring Target'}
         </button>
@@ -204,25 +204,25 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
           {targets.map((t) => (
             <div
               key={t.targetId}
-              className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+              className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
             >
               <div className="space-y-1">
                 <div className="flex items-center gap-2.5">
                   <Activity
                     className={`w-4 h-4 ${
                       t.lastStatus === 'up'
-                        ? 'text-[#008C55] dark:text-[#00E69A]'
+                        ? 'text-emerald-600 dark:text-emerald-400'
                         : t.lastStatus === 'down'
                           ? 'text-red-500'
                           : 'text-amber-500'
                     }`}
                   />
-                  <h3 className="text-base font-bold text-[#151515] dark:text-white">{t.domain}</h3>
-                  <span className="text-[11px] font-mono uppercase px-2 py-0.5 rounded border border-[#E7E0D3] dark:border-[#252525]">
+                  <h3 className="text-base font-bold text-[#0A0A0C] dark:text-white">{t.domain}</h3>
+                  <span className="text-[11px] font-mono uppercase px-2 py-0.5 rounded border border-[#E5E7EB] dark:border-white/[0.1]">
                     {t.enabled ? t.lastStatus : 'paused'}
                   </span>
                 </div>
-                <p className="text-xs font-mono text-[#777267] dark:text-[#929292]">
+                <p className="text-xs font-mono text-[#5A606E] dark:text-[#9499A6]">
                   {t.targetUrl} · Every {t.frequencyMinutes}m · HTTP {t.lastHttpStatus ?? '—'} ·{' '}
                   {t.lastResponseTimeMs !== null ? `${t.lastResponseTimeMs} ms` : 'Not checked yet'} · TLS{' '}
                   {t.sslExpiryDays !== null ? `${t.sslExpiryDays}d` : '—'}
@@ -234,7 +234,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                   type="button"
                   onClick={() => handleCheck(t)}
                   disabled={checkingId === t.targetId}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#151515] text-white dark:bg-white dark:text-[#050505] cursor-pointer disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-[#2F75C3] dark:bg-[#2F71E3] text-white cursor-pointer disabled:opacity-50"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${checkingId === t.targetId ? 'animate-spin' : ''}`} />
                   {checkingId === t.targetId ? 'Checking...' : 'Run Check'}
@@ -243,7 +243,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                   type="button"
                   onClick={() => onToggleTarget(t.targetId, !t.enabled)}
                   aria-label={t.enabled ? `Pause ${t.domain}` : `Resume ${t.domain}`}
-                  className="p-2 rounded-lg border border-[#E7E0D3] dark:border-[#252525] text-[#777267] dark:text-[#929292] hover:text-[#151515] dark:hover:text-white cursor-pointer"
+                  className="p-2 rounded-lg border border-[#E5E7EB] dark:border-white/[0.1] text-[#5A606E] dark:text-[#9499A6] hover:text-[#0A0A0C] dark:hover:text-white cursor-pointer"
                 >
                   {t.enabled ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                 </button>
@@ -251,7 +251,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
                   type="button"
                   onClick={() => onDeleteTarget(t.targetId)}
                   aria-label={`Delete ${t.domain}`}
-                  className="p-2 rounded-lg border border-[#E7E0D3] dark:border-[#252525] text-[#777267] dark:text-[#929292] hover:text-red-500 cursor-pointer"
+                  className="p-2 rounded-lg border border-[#E5E7EB] dark:border-white/[0.1] text-[#5A606E] dark:text-[#9499A6] hover:text-red-500 cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -263,18 +263,18 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({
 
       {/* Event History */}
       {events.length > 0 && (
-        <section className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] overflow-hidden">
-          <div className="px-6 py-4 border-b border-[#E7E0D3] dark:border-[#1E1E1E]">
-            <h2 className="text-sm font-bold text-[#151515] dark:text-white">Check &amp; Incident History</h2>
+        <section className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] overflow-hidden">
+          <div className="px-6 py-4 border-b border-[#E5E7EB] dark:border-white/[0.08]">
+            <h2 className="text-sm font-bold text-[#0A0A0C] dark:text-white">Check &amp; Incident History</h2>
           </div>
-          <div className="divide-y divide-[#EFECE4] dark:divide-[#1A1A1A]">
+          <div className="divide-y divide-[#E5E7EB] dark:divide-white/[0.06]">
             {events.slice(0, 15).map((ev) => (
               <div key={ev.eventId} className="px-6 py-3 flex flex-wrap items-center justify-between gap-2 text-xs">
                 <div className="flex items-center gap-3">
                   <span className="font-mono uppercase font-bold">{ev.status}</span>
-                  <span className="text-[#777267] dark:text-[#929292]">{ev.details}</span>
+                  <span className="text-[#5A606E] dark:text-[#9499A6]">{ev.details}</span>
                 </div>
-                <span className="font-mono tabular-nums text-[#777267] dark:text-[#929292]">
+                <span className="font-mono tabular-nums text-[#5A606E] dark:text-[#9499A6]">
                   {ev.responseTimeMs} ms · {new Date(ev.timestamp).toLocaleString()}
                 </span>
               </div>

@@ -32,29 +32,29 @@ export const ScanProgressView: React.FC<ScanProgressViewProps> = ({
 
   return (
     <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-12">
-      <div className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-6 sm:p-8 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E7E0D3] dark:border-[#1E1E1E] pb-5">
+      <div className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-6 sm:p-8 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E5E7EB] dark:border-white/[0.08] pb-5">
           <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-widest text-[#008C55] dark:text-[#00E69A]">
+            <p className="text-xs font-semibold uppercase tracking-widest text-[#2F75C3] dark:text-[#2F71E3]">
               {progress.status.replace('_', ' ')}
             </p>
-            <h1 className="text-xl sm:text-2xl font-bold text-[#151515] dark:text-white">
+            <h1 className="text-xl sm:text-2xl font-bold text-[#0A0A0C] dark:text-white">
               Auditing {progress.normalizedDomain}
             </h1>
-            <p className="text-xs font-mono text-[#777267] dark:text-[#929292] break-all">
+            <p className="text-xs font-mono text-[#5A606E] dark:text-[#9499A6] break-all">
               {progress.targetUrl} · ID: {progress.scanId}
             </p>
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
-            <span className="text-2xl font-bold tabular-nums text-[#151515] dark:text-white">
+            <span className="text-2xl font-bold tabular-nums text-[#0A0A0C] dark:text-white">
               {progress.progressPercent}%
             </span>
             {!isTerminalFailure && progress.status !== 'completed' && (
               <button
                 type="button"
                 onClick={onCancel}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium border border-[#E7E0D3] dark:border-[#252525] text-[#777267] dark:text-[#929292] hover:text-red-600 dark:hover:text-red-400 cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium border border-[#E5E7EB] dark:border-white/[0.1] text-[#5A606E] dark:text-[#9499A6] hover:text-red-600 dark:hover:text-red-400 cursor-pointer"
               >
                 <Ban className="w-3.5 h-3.5" />
                 Cancel
@@ -65,7 +65,7 @@ export const ScanProgressView: React.FC<ScanProgressViewProps> = ({
 
         {/* Progress Bar */}
         <div
-          className="w-full h-2 rounded-full bg-[#EFECE4] dark:bg-[#1B1B1B] overflow-hidden"
+          className="w-full h-2 rounded-full bg-[#F1F3F6] dark:bg-white/[0.08] overflow-hidden"
           role="progressbar"
           aria-valuenow={progress.progressPercent}
           aria-valuemin={0}
@@ -73,7 +73,7 @@ export const ScanProgressView: React.FC<ScanProgressViewProps> = ({
         >
           <div
             className={`h-full transition-all duration-300 ${
-              isTerminalFailure ? 'bg-red-500' : 'bg-[#008C55] dark:bg-[#00E69A]'
+              isTerminalFailure ? 'bg-red-500' : 'bg-[#2F75C3] dark:bg-[#2F71E3]'
             }`}
             style={{ width: `${progress.progressPercent}%` }}
           />
@@ -95,7 +95,7 @@ export const ScanProgressView: React.FC<ScanProgressViewProps> = ({
             <button
               type="button"
               onClick={onBackHome}
-              className="px-4 py-2 rounded-lg text-xs font-semibold bg-[#151515] text-white dark:bg-white dark:text-[#050505] cursor-pointer"
+              className="px-4 py-2 rounded-full text-xs font-semibold bg-[#2F75C3] dark:bg-[#2F71E3] text-white cursor-pointer"
             >
               Return to Scanner
             </button>
@@ -113,36 +113,36 @@ export const ScanProgressView: React.FC<ScanProgressViewProps> = ({
             return (
               <div
                 key={stageName}
-                className="flex items-start justify-between gap-4 py-2 border-b border-[#EFECE4] dark:border-[#161616] last:border-b-0"
+                className="flex items-start justify-between gap-4 py-2 border-b border-[#E5E7EB] dark:border-white/[0.06] last:border-b-0"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   {isFailed ? (
                     <XCircle className="w-4 h-4 text-red-500 shrink-0" />
                   ) : isCompleted ? (
-                    <CheckCircle2 className="w-4 h-4 text-[#008C55] dark:text-[#00E69A] shrink-0" />
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   ) : isActive ? (
-                    <Loader2 className="w-4 h-4 text-[#008C55] dark:text-[#00E69A] animate-spin shrink-0" />
+                    <Loader2 className="w-4 h-4 text-[#2F75C3] dark:text-[#2F71E3] animate-spin shrink-0" />
                   ) : (
-                    <Circle className="w-4 h-4 text-[#C5BFA8] dark:text-[#333] shrink-0" />
+                    <Circle className="w-4 h-4 text-[#D1D5DB] dark:text-white/[0.2] shrink-0" />
                   )}
                   <div className="min-w-0">
                     <p
                       className={`text-sm font-medium ${
                         isCompleted || isActive
-                          ? 'text-[#151515] dark:text-white'
-                          : 'text-[#777267] dark:text-[#666]'
+                          ? 'text-[#0A0A0C] dark:text-white'
+                          : 'text-[#5A606E] dark:text-[#9499A6]'
                       }`}
                     >
                       {stageName}
                     </p>
                     {logEntry && (
-                      <p className="text-xs text-[#777267] dark:text-[#929292] truncate">
+                      <p className="text-xs text-[#5A606E] dark:text-[#9499A6] truncate">
                         {logEntry.detail}
                       </p>
                     )}
                   </div>
                 </div>
-                <span className="text-[11px] font-mono text-[#777267] dark:text-[#666] shrink-0">
+                <span className="text-[11px] font-mono text-[#5A606E] dark:text-[#9499A6] shrink-0">
                   {isFailed ? 'Failed' : isCompleted ? 'Done' : isActive ? 'Running' : 'Pending'}
                 </span>
               </div>

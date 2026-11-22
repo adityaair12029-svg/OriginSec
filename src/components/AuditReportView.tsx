@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   ChevronDown,
@@ -7,23 +7,36 @@ import {
   FileJson,
   FileSpreadsheet,
   FileText,
+  Globe,
   RefreshCw,
   Send,
   ShieldAlert,
   Sparkles,
   Wrench,
 } from 'lucide-react';
-import type { FindingCategory, PriorityGroup, ScanFinding, SeverityLevel, WebsiteScan } from '../types/audit';
+import type {
+  FindingCategory,
+  GroundingSource,
+  PriorityGroup,
+  ScanFinding,
+  SeverityLevel,
+  WebsiteScan,
+} from '../types/audit';
 import { CircularGauge } from './CircularGauge';
 import { exportScanAsCsv, exportScanAsJson, exportScanAsPdf } from '../lib/export/exporters';
+
+interface AiResponsePayload {
+  text: string;
+  sources?: GroundingSource[];
+}
 
 interface AuditReportViewProps {
   scan: WebsiteScan;
   onRescan: (url: string) => void;
   onAddToMonitoring?: (scan: WebsiteScan) => void;
   onTrackFindingInRemediation?: (finding: ScanFinding, scan: WebsiteScan) => Promise<void>;
-  onGenerateAiBrief?: (scan: WebsiteScan, audience: 'owner' | 'developer') => Promise<string | null>;
-  onAskAiQuestion?: (scan: WebsiteScan, question: string) => Promise<string | null>;
+  onGenerateAiBrief?: (scan: WebsiteScan, audience: 'owner' | 'developer') => Promise<AiResponsePayload | null>;
+  onAskAiQuestion?: (scan: WebsiteScan, question: string) => Promise<AiResponsePayload | null>;
   isGeneratingAi?: boolean;
   aiError?: string | null;
 }
@@ -33,8 +46,8 @@ const SEVERITY_BADGE_STYLES: Record<SeverityLevel, string> = {
   high: 'border-red-400/50 bg-red-500/10 text-red-700 dark:text-red-300',
   medium: 'border-amber-500/50 bg-amber-500/10 text-amber-800 dark:text-amber-300',
   low: 'border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300',
-  informational: 'border-[#CFC8B8] dark:border-[#3A3A3A] bg-transparent text-[#777267] dark:text-[#929292]',
-  passed: 'border-[#008C55]/45 dark:border-[#00E69A]/40 bg-[#008C55]/10 dark:bg-[#00E69A]/10 text-[#008C55] dark:text-[#00E69A]',
+  informational: 'border-[#E5E7EB] dark:border-white/[0.15] bg-transparent text-[#5A606E] dark:text-[#9499A6]',
+  passed: 'border-emerald-600/40 dark:border-emerald-400/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
 };
 
 const CATEGORY_TITLES: Record<FindingCategory, string> = {
@@ -57,6 +70,39 @@ const PRIORITY_LABELS: Record<PriorityGroup, string> = {
   long_term: 'Long-term improvements',
 };
 
+const QUICK_AI_PROMPTS = [
+  'How do I fix missing security headers cleanly?',
+  'Which highest-risk issue should we resolve first?',
+  'Summarize this posture for executive leadership.',
+];
+
+const GroundingSourcesList: React.FC<{ sources?: GroundingSource[] }> = ({ sources }) => {
+  if (!sources || sources.length === 0) return null;
+  return (
+    <div className="pt-3 border-t border-[#E5E7EB] dark:border-white/[0.08] space-y-2">
+      <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#2F75C3] dark:text-[#2F71E3]">
+        <Globe className="w-3.5 h-3.5" />
+        Verified Web References (Google Search Grounding)
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {sources.map((src) => (
+          <a
+            key={src.uri}
+            href={src.uri}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-[#E5E7EB] dark:border-white/[0.1] bg-white dark:bg-[#0D0E12] text-[#0A0A0C] dark:text-white hover:border-[#2F75C3] dark:hover:border-[#2F71E3] transition-colors max-w-xs"
+            title={src.uri}
+          >
+            <span className="truncate">{src.title}</span>
+            <ExternalLink className="w-3 h-3 shrink-0 text-[#5A606E] dark:text-[#9499A6]" />
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const FindingCard: React.FC<{
   finding: ScanFinding;
   scan: WebsiteScan;
@@ -67,14 +113,14 @@ const FindingCard: React.FC<{
   const isActionable = finding.severity !== 'passed' && finding.status !== 'not_assessed';
 
   return (
-    <article className="rounded-xl border border-[#E7E0D3] dark:border-[#222] bg-[#FAF9F5] dark:bg-[#101010] p-6 space-y-3.5 transition-colors">
+    <article className="rounded-xl border border-[#E5E7EB] dark:border-white/[0.08] bg-[#F7F8FA] dark:bg-[#13151B] p-6 space-y-3.5 transition-colors">
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1 min-w-0">
-          <h4 className="text-base font-semibold text-[#151515] dark:text-white leading-snug">
+          <h4 className="text-base font-semibold text-[#0A0A0C] dark:text-white leading-snug">
             {finding.title}
           </h4>
           {(finding.ruleId || finding.confidence) && (
-            <p className="text-[11px] font-mono text-[#777267] dark:text-[#888]">
+            <p className="text-[11px] font-mono text-[#5A606E] dark:text-[#9499A6]">
               {finding.ruleId ? `Rule ${finding.ruleId}` : ''}
               {finding.ruleId && finding.confidence ? ' · ' : ''}
               {finding.confidence ? `Evidence: ${finding.confidence.replace('_', ' ')}` : ''}
@@ -90,15 +136,15 @@ const FindingCard: React.FC<{
         </span>
       </div>
 
-      <p className="text-[15px] leading-[1.6] text-[#777267] dark:text-[#929292]">
+      <p className="text-[15px] leading-[1.6] text-[#5A606E] dark:text-[#9499A6]">
         {finding.description}
       </p>
 
-      <div className="border-t border-[#E7E0D3] dark:border-[#202020] pt-3.5 space-y-2.5 text-[15px]">
-        <p className="text-[#151515] dark:text-[#E5E5E5] leading-[1.6]">
+      <div className="border-t border-[#E5E7EB] dark:border-white/[0.08] pt-3.5 space-y-2.5 text-[15px]">
+        <p className="text-[#0A0A0C] dark:text-[#E5E7EB] leading-[1.6]">
           <span className="font-semibold">Fix:</span> {finding.recommendation}
           {finding.remediation && (
-            <code className="block mt-2 px-3 py-2 rounded-lg bg-[#EFECE4] dark:bg-[#070707] border border-[#E7E0D3] dark:border-[#222] text-[13px] font-mono text-[#151515] dark:text-[#D4D4D4] break-all whitespace-pre-wrap">
+            <code className="block mt-2 px-3 py-2 rounded-lg bg-[#FFFFFF] dark:bg-[#090A0D] border border-[#E5E7EB] dark:border-white/[0.08] text-[13px] font-mono text-[#0A0A0C] dark:text-[#D8DCE6] break-all whitespace-pre-wrap">
               {finding.remediation}
             </code>
           )}
@@ -109,7 +155,7 @@ const FindingCard: React.FC<{
             type="button"
             onClick={() => setExpanded((v) => !v)}
             aria-expanded={expanded}
-            className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[#777267] dark:text-[#929292] hover:text-[#151515] dark:hover:text-white cursor-pointer transition-colors"
+            className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[#5A606E] dark:text-[#9499A6] hover:text-[#0A0A0C] dark:hover:text-white cursor-pointer transition-colors"
           >
             {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             {expanded ? 'Hide evidence & verification' : 'Inspect evidence, impact & verification'}
@@ -123,34 +169,34 @@ const FindingCard: React.FC<{
                 setTracked(true);
               }}
               disabled={tracked}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-[#E7E0D3] dark:border-[#252525] text-[#151515] dark:text-white hover:border-[#008C55] dark:hover:border-[#00E69A] disabled:opacity-60 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-[#E5E7EB] dark:border-white/[0.1] text-[#0A0A0C] dark:text-white hover:border-[#2F75C3] dark:hover:border-[#2F71E3] disabled:opacity-60 cursor-pointer"
             >
-              <Wrench className="w-3 h-3 text-[#008C55] dark:text-[#00E69A]" />
+              <Wrench className="w-3 h-3 text-[#2F75C3] dark:text-[#2F71E3]" />
               {tracked ? 'Added to Remediation' : 'Track in Remediation'}
             </button>
           )}
         </div>
 
         {expanded && (
-          <div className="pt-2.5 space-y-2 text-[13px] text-[#777267] dark:text-[#929292] border-t border-dashed border-[#E7E0D3] dark:border-[#222]">
+          <div className="pt-2.5 space-y-2 text-[13px] text-[#5A606E] dark:text-[#9499A6] border-t border-dashed border-[#E5E7EB] dark:border-white/[0.08]">
             <div>
-              <span className="font-semibold text-[#151515] dark:text-white">Evidence: </span>
+              <span className="font-semibold text-[#0A0A0C] dark:text-white">Evidence: </span>
               <span className="font-mono break-all">{finding.evidence}</span>
             </div>
             <div>
-              <span className="font-semibold text-[#151515] dark:text-white">Observed Value: </span>
+              <span className="font-semibold text-[#0A0A0C] dark:text-white">Observed Value: </span>
               <span className="font-mono">{finding.observedValue}</span>
             </div>
             <div>
-              <span className="font-semibold text-[#151515] dark:text-white">Affected URL: </span>
+              <span className="font-semibold text-[#0A0A0C] dark:text-white">Affected URL: </span>
               <span className="font-mono break-all">{finding.affectedUrl}</span>
             </div>
             <div>
-              <span className="font-semibold text-[#151515] dark:text-white">Impact: </span>
+              <span className="font-semibold text-[#0A0A0C] dark:text-white">Impact: </span>
               <span>{finding.impact}</span>
             </div>
             <div>
-              <span className="font-semibold text-[#151515] dark:text-white">Verification: </span>
+              <span className="font-semibold text-[#0A0A0C] dark:text-white">Verification: </span>
               <span>{finding.verification}</span>
             </div>
           </div>
@@ -174,9 +220,18 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
   const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [audience, setAudience] = useState<'owner' | 'developer'>('owner');
   const [localAiText, setLocalAiText] = useState<string | null>(scan.aiExplanation || null);
+  const [localAiSources, setLocalAiSources] = useState<GroundingSource[]>(scan.aiSources || []);
   const [askInput, setAskInput] = useState('');
   const [askAnswer, setAskAnswer] = useState<string | null>(null);
+  const [askSources, setAskSources] = useState<GroundingSource[]>([]);
   const [isAskingAi, setIsAskingAi] = useState(false);
+
+  useEffect(() => {
+    setLocalAiText(scan.aiExplanation || null);
+    setLocalAiSources(scan.aiSources || []);
+    setAskAnswer(null);
+    setAskSources([]);
+  }, [scan.scanId, scan.aiExplanation, scan.aiSources]);
 
   const findings = scan.findings || [];
 
@@ -210,33 +265,43 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
   const handleAiTrigger = async () => {
     if (!onGenerateAiBrief) return;
     const result = await onGenerateAiBrief(scan, audience);
-    if (result) setLocalAiText(result);
+    if (result) {
+      setLocalAiText(result.text);
+      setLocalAiSources(result.sources || []);
+    }
   };
 
-  const handleAskSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!onAskAiQuestion || !askInput.trim()) return;
+  const submitQuestion = async (questionText: string) => {
+    if (!onAskAiQuestion || questionText.trim().length < 3) return;
     setIsAskingAi(true);
     try {
-      const answer = await onAskAiQuestion(scan, askInput.trim());
-      if (answer) setAskAnswer(answer);
+      const answer = await onAskAiQuestion(scan, questionText.trim());
+      if (answer) {
+        setAskAnswer(answer.text);
+        setAskSources(answer.sources || []);
+      }
     } finally {
       setIsAskingAi(false);
     }
   };
 
+  const handleAskSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await submitQuestion(askInput);
+  };
+
   return (
     <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8 animate-fade-up">
       {/* Top Report Header */}
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 border-b border-[#E7E0D3] dark:border-[#1E1E1E] pb-6">
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 border-b border-[#E5E7EB] dark:border-white/[0.08] pb-6">
         <div className="space-y-1.5 min-w-0">
-          <h1 className="text-2xl sm:text-[34px] font-bold tracking-tight text-[#151515] dark:text-white break-words">
+          <h1 className="text-2xl sm:text-[36px] font-semibold tracking-tight text-[#0A0A0C] dark:text-white break-words">
             Audit report — {scan.normalizedDomain}
           </h1>
-          <p className="text-[15px] text-[#777267] dark:text-[#929292] break-all">
+          <p className="text-[15px] text-[#5A606E] dark:text-[#9499A6] break-all">
             {scan.targetUrl}
           </p>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-[#777267] dark:text-[#929292] pt-1 font-mono tabular-nums">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-[#5A606E] dark:text-[#9499A6] pt-1 font-mono tabular-nums">
             <span>ID: {scan.scanId}</span>
             <span aria-hidden="true">·</span>
             <span>Profile: {scan.scanProfile || scan.coverage?.scanProfile || 'standard'}</span>
@@ -260,7 +325,7 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
             href={scan.targetUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] text-[#151515] dark:text-white hover:border-[#929292] transition-colors whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium border border-[#E5E7EB] dark:border-white/[0.1] bg-white dark:bg-[#101115] text-[#0A0A0C] dark:text-white hover:border-[#2F75C3] dark:hover:border-[#2F71E3] transition-colors whitespace-nowrap"
           >
             Visit site
             <ExternalLink className="w-3.5 h-3.5" />
@@ -269,7 +334,7 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
           <button
             type="button"
             onClick={() => onRescan(scan.targetUrl)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] text-[#151515] dark:text-white hover:border-[#008C55] dark:hover:border-[#00E69A] transition-colors whitespace-nowrap cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium border border-[#E5E7EB] dark:border-white/[0.1] bg-white dark:bg-[#101115] text-[#0A0A0C] dark:text-white hover:border-[#2F75C3] dark:hover:border-[#2F71E3] transition-colors whitespace-nowrap cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             Rescan
@@ -279,18 +344,18 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
             <button
               type="button"
               onClick={() => onAddToMonitoring(scan)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] text-[#151515] dark:text-white hover:border-[#008C55] dark:hover:border-[#00E69A] transition-colors whitespace-nowrap cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium border border-[#E5E7EB] dark:border-white/[0.1] bg-white dark:bg-[#101115] text-[#0A0A0C] dark:text-white hover:border-[#2F75C3] dark:hover:border-[#2F71E3] transition-colors whitespace-nowrap cursor-pointer"
             >
               <Activity className="w-3.5 h-3.5" />
               Monitor
             </button>
           )}
 
-          <div className="inline-flex items-center rounded-full border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-0.5">
+          <div className="inline-flex items-center rounded-full border border-[#E5E7EB] dark:border-white/[0.1] bg-white dark:bg-[#101115] p-0.5">
             <button
               type="button"
               onClick={() => exportScanAsPdf(scan)}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-medium text-[#151515] dark:text-white hover:bg-[#F7F5EF] dark:hover:bg-[#1A1A1A] cursor-pointer"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-medium text-[#0A0A0C] dark:text-white hover:bg-[#F7F8FA] dark:hover:bg-white/[0.06] cursor-pointer"
               title="Export PDF Report"
             >
               <FileText className="w-3 h-3" />
@@ -299,7 +364,7 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
             <button
               type="button"
               onClick={() => exportScanAsCsv(scan)}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-medium text-[#151515] dark:text-white hover:bg-[#F7F5EF] dark:hover:bg-[#1A1A1A] cursor-pointer"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-medium text-[#0A0A0C] dark:text-white hover:bg-[#F7F8FA] dark:hover:bg-white/[0.06] cursor-pointer"
               title="Export CSV Findings"
             >
               <FileSpreadsheet className="w-3 h-3" />
@@ -308,7 +373,7 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
             <button
               type="button"
               onClick={() => exportScanAsJson(scan)}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-medium text-[#151515] dark:text-white hover:bg-[#F7F5EF] dark:hover:bg-[#1A1A1A] cursor-pointer"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-medium text-[#0A0A0C] dark:text-white hover:bg-[#F7F8FA] dark:hover:bg-white/[0.06] cursor-pointer"
               title="Export JSON Report"
             >
               <FileJson className="w-3 h-3" />
@@ -319,11 +384,11 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
       </div>
 
       {/* Executive Summary Box */}
-      <section className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-7 space-y-2.5">
-        <p className="text-[16px] sm:text-[17px] leading-[1.65] text-[#151515] dark:text-[#EDEDED]">
+      <section className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-7 space-y-2.5">
+        <p className="text-[16px] sm:text-[17px] leading-[1.65] text-[#0A0A0C] dark:text-[#EDEDED]">
           {scan.summary}
         </p>
-        <p className="text-[13px] text-[#777267] dark:text-[#929292]">
+        <p className="text-[13px] text-[#5A606E] dark:text-[#9499A6]">
           Coverage: HTTPS {scan.coverage?.httpsVerified ? 'checked' : 'unavailable'} · TLS{' '}
           {scan.coverage?.tlsVerified ? 'verified' : 'unavailable'} · DNS{' '}
           {scan.coverage?.dnsVerified ? 'resolved' : 'unavailable'} · Lighthouse{' '}
@@ -342,7 +407,7 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
         <CircularGauge score={scan.scores?.engagement ?? null} label="ENGAGEMENT" />
       </section>
 
-      {/* Sub-Scores Strip (SEO / Accessibility / Performance / Overall) */}
+      {/* Sub-Scores Strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
         {[
           { label: 'Overall Score', value: `${scan.scores?.overall ?? 'N/A'}/100` },
@@ -350,15 +415,15 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
           { label: 'Accessibility Signals', value: `${scan.scores?.accessibility ?? scan.scores?.frontend ?? 'N/A'}/100` },
           { label: 'Performance Score', value: `${scan.scores?.performance ?? scan.scores?.backend ?? 'N/A'}/100` },
         ].map((sub) => (
-          <div key={sub.label} className="rounded-xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] px-4 py-3 flex items-center justify-between">
-            <span className="text-[#777267] dark:text-[#929292]">{sub.label}</span>
-            <span className="font-mono font-bold tabular-nums text-[#151515] dark:text-white">{sub.value}</span>
+          <div key={sub.label} className="rounded-xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] px-4 py-3 flex items-center justify-between">
+            <span className="text-[#5A606E] dark:text-[#9499A6]">{sub.label}</span>
+            <span className="font-mono font-bold tabular-nums text-[#0A0A0C] dark:text-white">{sub.value}</span>
           </div>
         ))}
       </div>
 
       {/* Report Sub-Navigation Tabs */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E7E0D3] dark:border-[#1E1E1E] pb-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E5E7EB] dark:border-white/[0.08] pb-3">
         <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Report Sections">
           {(
             [
@@ -376,8 +441,8 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
               onClick={() => setActiveTab(tab.id)}
               className={`px-4 py-2.5 rounded-lg text-[13px] font-semibold transition-colors whitespace-nowrap cursor-pointer ${
                 activeTab === tab.id
-                  ? 'bg-[#151515] text-white dark:bg-white dark:text-[#050505]'
-                  : 'text-[#777267] dark:text-[#929292] hover:text-[#151515] dark:hover:text-white'
+                  ? 'bg-[#2F75C3] dark:bg-[#2F71E3] text-white'
+                  : 'text-[#5A606E] dark:text-[#9499A6] hover:text-[#0A0A0C] dark:hover:text-white'
               }`}
             >
               {tab.label}
@@ -387,14 +452,14 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
 
         {activeTab === 'findings' && (
           <div className="flex items-center gap-2">
-            <label htmlFor="severity-filter" className="text-[13px] text-[#777267] dark:text-[#929292]">
+            <label htmlFor="severity-filter" className="text-[13px] text-[#5A606E] dark:text-[#9499A6]">
               Filter:
             </label>
             <select
               id="severity-filter"
               value={severityFilter}
               onChange={(e) => setSeverityFilter(e.target.value)}
-              className="px-3.5 py-2 rounded-lg text-[13px] border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] text-[#151515] dark:text-white cursor-pointer"
+              className="px-3.5 py-2 rounded-lg text-[13px] border border-[#E5E7EB] dark:border-white/[0.1] bg-white dark:bg-[#101115] text-[#0A0A0C] dark:text-white cursor-pointer"
             >
               <option value="all">All Checks ({findings.length})</option>
               <option value="critical">Critical ({sevCounts.critical})</option>
@@ -417,19 +482,19 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
               return (
                 <section
                   key={cat}
-                  className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-7 space-y-5"
+                  className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-7 space-y-5"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-xl font-bold text-[#151515] dark:text-white">
+                    <h3 className="text-xl font-bold text-[#0A0A0C] dark:text-white">
                       {CATEGORY_TITLES[cat]}
                     </h3>
-                    <span className="text-[13px] font-mono tabular-nums text-[#777267] dark:text-[#929292]">
+                    <span className="text-[13px] font-mono tabular-nums text-[#5A606E] dark:text-[#9499A6]">
                       {catFindings.length} check{catFindings.length === 1 ? '' : 's'}
                     </span>
                   </div>
 
                   {catFindings.length === 0 ? (
-                    <p className="text-sm text-[#777267] dark:text-[#929292] py-4">
+                    <p className="text-sm text-[#5A606E] dark:text-[#9499A6] py-4">
                       No findings match the selected severity filter in this category.
                     </p>
                   ) : (
@@ -445,12 +510,12 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
           </div>
 
           {/* Extended Infrastructure / Database / Backup Transparency Cards */}
-          <section className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-6 space-y-4">
+          <section className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-6 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <h3 className="text-lg font-bold text-[#151515] dark:text-white">
+              <h3 className="text-lg font-bold text-[#0A0A0C] dark:text-white">
                 Extended Infrastructure Scope (Database, Hosting &amp; Backup)
               </h3>
-              <span className="text-xs text-[#777267] dark:text-[#929292]">
+              <span className="text-xs text-[#5A606E] dark:text-[#9499A6]">
                 Requires authorized owner integration
               </span>
             </div>
@@ -459,7 +524,7 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
                 const items = findings.filter((f) => f.category === cat);
                 return (
                   <div key={cat} className="space-y-3">
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-[#777267] dark:text-[#929292]">
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-[#5A606E] dark:text-[#9499A6]">
                       {CATEGORY_TITLES[cat]}
                     </h4>
                     {items.map((f) => (
@@ -482,13 +547,13 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
             return (
               <section
                 key={group}
-                className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-6 space-y-4"
+                className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-6 space-y-4"
               >
                 <div className="flex items-center justify-between">
-                  <h3 className="text-base font-bold text-[#151515] dark:text-white">
+                  <h3 className="text-base font-bold text-[#0A0A0C] dark:text-white">
                     {PRIORITY_LABELS[group]}
                   </h3>
-                  <span className="text-xs font-mono tabular-nums text-[#777267] dark:text-[#929292]">
+                  <span className="text-xs font-mono tabular-nums text-[#5A606E] dark:text-[#9499A6]">
                     {items.length} item{items.length === 1 ? '' : 's'}
                   </span>
                 </div>
@@ -506,7 +571,6 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
       {/* TAB 3: Metrics, TLS, DNS & Visual Charts */}
       {activeTab === 'telemetry' && (
         <div className="space-y-6">
-          {/* Performance & DOM Metrics Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
               { label: 'TTFB / Warm TTFB', value: `${scan.metrics?.ttfbMs ?? 'N/A'} / ${scan.metrics?.timingBreakdown?.warmTtfbMs ?? scan.metrics?.ttfbMs ?? 'N/A'} ms` },
@@ -520,10 +584,10 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
             ].map((m) => (
               <div
                 key={m.label}
-                className="rounded-xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-4"
+                className="rounded-xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-4"
               >
-                <p className="text-xs text-[#777267] dark:text-[#929292]">{m.label}</p>
-                <p className="text-lg font-bold font-mono tabular-nums text-[#151515] dark:text-white mt-1 truncate">
+                <p className="text-xs text-[#5A606E] dark:text-[#9499A6]">{m.label}</p>
+                <p className="text-lg font-bold font-mono tabular-nums text-[#0A0A0C] dark:text-white mt-1 truncate">
                   {m.value}
                 </p>
               </div>
@@ -531,8 +595,8 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <section className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-6 space-y-4">
-              <h3 className="text-base font-bold text-[#151515] dark:text-white">
+            <section className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-6 space-y-4">
+              <h3 className="text-base font-bold text-[#0A0A0C] dark:text-white">
                 Severity Distribution (Observed Checks)
               </h3>
               <div className="space-y-3">
@@ -541,17 +605,17 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
                     { label: 'Critical', count: sevCounts.critical, color: 'bg-red-600' },
                     { label: 'High', count: sevCounts.high, color: 'bg-red-400' },
                     { label: 'Medium', count: sevCounts.medium, color: 'bg-amber-500' },
-                    { label: 'Low', count: sevCounts.low, color: 'bg-sky-500' },
+                    { label: 'Low', count: sevCounts.low, color: 'bg-[#2F75C3] dark:bg-[#2F71E3]' },
                     { label: 'Informational', count: sevCounts.informational, color: 'bg-neutral-400' },
-                    { label: 'Passed', count: sevCounts.passed, color: 'bg-[#008C55] dark:bg-[#00E69A]' },
+                    { label: 'Passed', count: sevCounts.passed, color: 'bg-emerald-600 dark:bg-emerald-400' },
                   ] as const
                 ).map((row) => (
                   <div key={row.label} className="space-y-1">
                     <div className="flex justify-between text-xs">
-                      <span className="text-[#151515] dark:text-white font-medium">{row.label}</span>
-                      <span className="font-mono tabular-nums text-[#777267] dark:text-[#929292]">{row.count}</span>
+                      <span className="text-[#0A0A0C] dark:text-white font-medium">{row.label}</span>
+                      <span className="font-mono tabular-nums text-[#5A606E] dark:text-[#9499A6]">{row.count}</span>
                     </div>
-                    <div className="w-full h-2 rounded-full bg-[#EFECE4] dark:bg-[#1B1B1B] overflow-hidden">
+                    <div className="w-full h-2 rounded-full bg-[#F1F3F6] dark:bg-white/[0.08] overflow-hidden">
                       <div
                         className={`h-full rounded-full ${row.color}`}
                         style={{ width: `${(row.count / maxSevVal) * 100}%` }}
@@ -563,43 +627,43 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
             </section>
 
             {/* TLS & DNS Observations */}
-            <section className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-6 space-y-4">
-              <h3 className="text-base font-bold text-[#151515] dark:text-white">
+            <section className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-6 space-y-4">
+              <h3 className="text-base font-bold text-[#0A0A0C] dark:text-white">
                 TLS Certificate &amp; DNS Signals
               </h3>
               <div className="space-y-2.5 text-xs">
-                <div className="flex justify-between gap-4 py-1.5 border-b border-[#EFECE4] dark:border-[#1B1B1B]">
-                  <span className="text-[#777267] dark:text-[#929292]">TLS Protocol / Cipher</span>
-                  <span className="font-mono text-[#151515] dark:text-white text-right">
+                <div className="flex justify-between gap-4 py-1.5 border-b border-[#E5E7EB] dark:border-white/[0.06]">
+                  <span className="text-[#5A606E] dark:text-[#9499A6]">TLS Protocol / Cipher</span>
+                  <span className="font-mono text-[#0A0A0C] dark:text-white text-right">
                     {scan.metrics?.tls?.available
                       ? `${scan.metrics.tls.protocol || 'TLS'} (${scan.metrics.tls.cipher || 'N/A'})`
                       : 'Unavailable'}
                   </span>
                 </div>
-                <div className="flex justify-between gap-4 py-1.5 border-b border-[#EFECE4] dark:border-[#1B1B1B]">
-                  <span className="text-[#777267] dark:text-[#929292]">Certificate Issuer &amp; Expiry</span>
-                  <span className="font-mono text-[#151515] dark:text-white text-right">
+                <div className="flex justify-between gap-4 py-1.5 border-b border-[#E5E7EB] dark:border-white/[0.06]">
+                  <span className="text-[#5A606E] dark:text-[#9499A6]">Certificate Issuer &amp; Expiry</span>
+                  <span className="font-mono text-[#0A0A0C] dark:text-white text-right">
                     {scan.metrics?.tls?.available
                       ? `${scan.metrics.tls.issuer || 'CA'} · ${scan.metrics.tls.daysRemaining ?? '?'}d remaining`
                       : 'Unavailable'}
                   </span>
                 </div>
-                <div className="flex justify-between gap-4 py-1.5 border-b border-[#EFECE4] dark:border-[#1B1B1B]">
-                  <span className="text-[#777267] dark:text-[#929292]">DNS A / AAAA Records</span>
-                  <span className="font-mono text-[#151515] dark:text-white text-right truncate max-w-[260px]">
+                <div className="flex justify-between gap-4 py-1.5 border-b border-[#E5E7EB] dark:border-white/[0.06]">
+                  <span className="text-[#5A606E] dark:text-[#9499A6]">DNS A / AAAA Records</span>
+                  <span className="font-mono text-[#0A0A0C] dark:text-white text-right truncate max-w-[260px]">
                     {[...(scan.metrics?.dns?.aRecords || []), ...(scan.metrics?.dns?.aaaaRecords || [])].join(', ') || 'None'}
                   </span>
                 </div>
-                <div className="flex justify-between gap-4 py-1.5 border-b border-[#EFECE4] dark:border-[#1B1B1B]">
-                  <span className="text-[#777267] dark:text-[#929292]">Email &amp; CAA DNS</span>
-                  <span className="font-mono text-[#151515] dark:text-white text-right">
+                <div className="flex justify-between gap-4 py-1.5 border-b border-[#E5E7EB] dark:border-white/[0.06]">
+                  <span className="text-[#5A606E] dark:text-[#9499A6]">Email &amp; CAA DNS</span>
+                  <span className="font-mono text-[#0A0A0C] dark:text-white text-right">
                     SPF: {scan.metrics?.dns?.hasSpf ? 'Yes' : 'No'} · DMARC: {scan.metrics?.dns?.hasDmarc ? 'Yes' : 'No'} · CAA:{' '}
                     {(scan.metrics?.dns?.caaRecords?.length ?? 0) > 0 ? 'Yes' : 'No'}
                   </span>
                 </div>
                 <div className="flex justify-between gap-4 py-1.5">
-                  <span className="text-[#777267] dark:text-[#929292]">PageSpeed Insights (Lighthouse)</span>
-                  <span className="font-mono text-[#151515] dark:text-white text-right">
+                  <span className="text-[#5A606E] dark:text-[#9499A6]">PageSpeed Insights (Lighthouse)</span>
+                  <span className="font-mono text-[#0A0A0C] dark:text-white text-right">
                     {scan.metrics?.lighthouse?.available
                       ? `Perf ${scan.metrics.lighthouse.performanceScore}/100 · LCP ${scan.metrics.lighthouse.lcpMs}ms (${scan.metrics.lighthouse.dataType})`
                       : 'Not configured on server'}
@@ -610,19 +674,19 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
           </div>
 
           {scan.metrics?.crawledPageDetails && scan.metrics.crawledPageDetails.length > 0 && (
-            <section className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-6 space-y-4">
+            <section className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-6 space-y-4">
               <div className="flex items-center justify-between gap-2">
-                <h3 className="text-base font-bold text-[#151515] dark:text-white">
+                <h3 className="text-base font-bold text-[#0A0A0C] dark:text-white">
                   Live Crawled Pages ({scan.metrics.crawledPageDetails.length})
                 </h3>
-                <span className="text-xs font-mono text-[#777267] dark:text-[#929292]">
+                <span className="text-xs font-mono text-[#5A606E] dark:text-[#9499A6]">
                   Same-origin deterministic crawl
                 </span>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="border-b border-[#E7E0D3] dark:border-[#1E1E1E] text-[#777267] dark:text-[#929292]">
+                    <tr className="border-b border-[#E5E7EB] dark:border-white/[0.08] text-[#5A606E] dark:text-[#9499A6]">
                       <th className="py-2 pr-4 font-medium">Page URL</th>
                       <th className="py-2 px-3 font-medium">Page Title</th>
                       <th className="py-2 px-3 font-medium text-right">HTTP</th>
@@ -631,11 +695,11 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
                   </thead>
                   <tbody>
                     {scan.metrics.crawledPageDetails.map((pg) => (
-                      <tr key={pg.url} className="border-b border-[#EFECE4] dark:border-[#181818] last:border-b-0">
-                        <td className="py-2 pr-4 font-mono text-[#151515] dark:text-white max-w-[280px] truncate">{pg.url}</td>
-                        <td className="py-2 px-3 text-[#777267] dark:text-[#929292] max-w-[260px] truncate">{pg.title || '—'}</td>
+                      <tr key={pg.url} className="border-b border-[#E5E7EB] dark:border-white/[0.05] last:border-b-0">
+                        <td className="py-2 pr-4 font-mono text-[#0A0A0C] dark:text-white max-w-[280px] truncate">{pg.url}</td>
+                        <td className="py-2 px-3 text-[#5A606E] dark:text-[#9499A6] max-w-[260px] truncate">{pg.title || '—'}</td>
                         <td className="py-2 px-3 font-mono text-right tabular-nums">{pg.statusCode || 'ERR'}</td>
-                        <td className="py-2 pl-3 font-mono text-right tabular-nums text-[#777267] dark:text-[#929292]">{pg.ttfbMs} ms</td>
+                        <td className="py-2 pl-3 font-mono text-right tabular-nums text-[#5A606E] dark:text-[#9499A6]">{pg.ttfbMs} ms</td>
                       </tr>
                     ))}
                   </tbody>
@@ -646,19 +710,19 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
         </div>
       )}
 
-      {/* TAB 4: Gemini AI Explanation & Interactive Q&A */}
+      {/* TAB 4: AI Explanation & Google Search Grounded Q&A */}
       {activeTab === 'ai' && (
-        <section className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-6 space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E7E0D3] dark:border-[#1E1E1E] pb-4">
+        <section className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-6 space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E5E7EB] dark:border-white/[0.08] pb-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[#008C55] dark:text-[#00E69A]" />
-                <h3 className="text-base font-bold text-[#151515] dark:text-white">
+                <Sparkles className="w-4 h-4 text-[#2F75C3] dark:text-[#2F71E3]" />
+                <h3 className="text-base font-bold text-[#0A0A0C] dark:text-white">
                   AI-Generated Findings Brief &amp; Grounded Q&amp;A
                 </h3>
               </div>
-              <p className="text-xs text-[#777267] dark:text-[#929292]">
-                Distinguishes deterministic observed facts from AI interpretation. Only sanitized findings are passed to Gemini; cookies and credentials are never sent.
+              <p className="text-xs text-[#5A606E] dark:text-[#9499A6]">
+                Combines verified deterministic scan findings with Google Search Grounding references. Credentials and cookies are never transmitted.
               </p>
             </div>
 
@@ -667,7 +731,7 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
                 value={audience}
                 onChange={(e) => setAudience(e.target.value as 'owner' | 'developer')}
                 aria-label="Brief Audience"
-                className="px-3 py-2 rounded-lg text-xs border border-[#E7E0D3] dark:border-[#252525] bg-[#FAF9F5] dark:bg-[#101010] text-[#151515] dark:text-white"
+                className="px-3 py-2 rounded-lg text-xs border border-[#E5E7EB] dark:border-white/[0.1] bg-[#F7F8FA] dark:bg-[#13151B] text-[#0A0A0C] dark:text-white"
               >
                 <option value="owner">Website Owner Summary</option>
                 <option value="developer">Developer Remediation Brief</option>
@@ -676,7 +740,7 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
                 type="button"
                 onClick={handleAiTrigger}
                 disabled={isGeneratingAi}
-                className="px-4 py-2 rounded-lg text-xs font-semibold bg-[#151515] text-white dark:bg-white dark:text-[#050505] hover:opacity-90 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                className="px-4 py-2 rounded-full text-xs font-semibold bg-[#2F75C3] dark:bg-[#2F71E3] text-white hover:opacity-95 disabled:opacity-50 cursor-pointer whitespace-nowrap"
               >
                 {isGeneratingAi ? 'Generating...' : 'Generate AI Brief'}
               </button>
@@ -691,26 +755,45 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
           )}
 
           {localAiText ? (
-            <div className="rounded-xl border border-[#E7E0D3] dark:border-[#222] bg-[#FAF9F5] dark:bg-[#101010] p-5 space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-[#008C55] dark:text-[#00E69A]">
+            <div className="rounded-xl border border-[#E5E7EB] dark:border-white/[0.08] bg-[#F7F8FA] dark:bg-[#13151B] p-5 space-y-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[#2F75C3] dark:text-[#2F71E3]">
                 AI-Generated Interpretation (Grounded in Verified Scan Data)
               </p>
-              <div className="text-sm leading-relaxed text-[#151515] dark:text-[#E5E5E5] whitespace-pre-wrap">
+              <div className="text-sm leading-relaxed text-[#0A0A0C] dark:text-[#E5E7EB] whitespace-pre-wrap">
                 {localAiText}
               </div>
+              <GroundingSourcesList sources={localAiSources} />
             </div>
           ) : (
-            <div className="text-center py-6 text-sm text-[#777267] dark:text-[#929292]">
+            <div className="text-center py-6 text-sm text-[#5A606E] dark:text-[#9499A6]">
               Select an audience and click <strong>Generate AI Brief</strong> to synthesize prioritized remediation steps from the verified findings above.
             </div>
           )}
 
           {/* Grounded Q&A Box */}
           {onAskAiQuestion && (
-            <form onSubmit={handleAskSubmit} className="pt-4 border-t border-[#E7E0D3] dark:border-[#1E1E1E] space-y-3">
-              <label htmlFor="ai-ask-input" className="block text-xs font-semibold text-[#151515] dark:text-white">
+            <form onSubmit={handleAskSubmit} className="pt-4 border-t border-[#E5E7EB] dark:border-white/[0.08] space-y-3">
+              <label htmlFor="ai-ask-input" className="block text-xs font-semibold text-[#0A0A0C] dark:text-white">
                 Ask AI Analyst about this specific scan
               </label>
+
+              <div className="flex flex-wrap gap-2">
+                {QUICK_AI_PROMPTS.map((promptText) => (
+                  <button
+                    key={promptText}
+                    type="button"
+                    disabled={isAskingAi}
+                    onClick={() => {
+                      setAskInput(promptText);
+                      void submitQuestion(promptText);
+                    }}
+                    className="px-3 py-1.5 rounded-full text-xs font-medium border border-[#E5E7EB] dark:border-white/[0.1] bg-[#F7F8FA] dark:bg-[#13151B] text-[#5A606E] dark:text-[#9499A6] hover:text-[#0A0A0C] dark:hover:text-white hover:border-[#2F75C3] dark:hover:border-[#2F71E3] transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {promptText}
+                  </button>
+                ))}
+              </div>
+
               <div className="flex gap-2">
                 <input
                   id="ai-ask-input"
@@ -718,20 +801,21 @@ export const AuditReportView: React.FC<AuditReportViewProps> = ({
                   value={askInput}
                   onChange={(e) => setAskInput(e.target.value)}
                   placeholder="e.g. How do I configure the missing Content-Security-Policy header cleanly?"
-                  className="flex-1 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm border border-[#E7E0D3] dark:border-[#252525] bg-[#FAF9F5] dark:bg-[#101010] text-[#151515] dark:text-white"
+                  className="flex-1 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm border border-[#E5E7EB] dark:border-white/[0.1] bg-[#F7F8FA] dark:bg-[#13151B] text-[#0A0A0C] dark:text-white focus:outline-none focus:border-[#2F75C3] dark:focus:border-[#2F71E3]"
                 />
                 <button
                   type="submit"
                   disabled={isAskingAi || askInput.trim().length < 3}
-                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold bg-[#151515] text-white dark:bg-white dark:text-[#050505] disabled:opacity-50 cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full text-xs font-semibold bg-[#2F75C3] dark:bg-[#2F71E3] text-white hover:opacity-95 disabled:opacity-50 cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5" />
                   {isAskingAi ? 'Thinking...' : 'Ask'}
                 </button>
               </div>
               {askAnswer && (
-                <div className="rounded-xl border border-[#E7E0D3] dark:border-[#222] bg-[#FAF9F5] dark:bg-[#101010] p-4 text-sm text-[#151515] dark:text-[#E5E5E5] whitespace-pre-wrap">
-                  {askAnswer}
+                <div className="rounded-xl border border-[#E5E7EB] dark:border-white/[0.08] bg-[#F7F8FA] dark:bg-[#13151B] p-4 space-y-3 text-sm text-[#0A0A0C] dark:text-[#E5E7EB] whitespace-pre-wrap">
+                  <div>{askAnswer}</div>
+                  <GroundingSourcesList sources={askSources} />
                 </div>
               )}
             </form>

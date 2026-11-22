@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { Bell, LogOut, Menu, Search, Shield, User as UserIcon, X } from 'lucide-react';
 import type { User } from 'firebase/auth';
 import type { ThemeMode } from '../types/audit';
+import { OriginSecMark } from './OriginSecMark';
 
 export type AppRoute =
   | 'home'
+  | 'login'
   | 'dashboard'
   | 'websites'
   | 'scan'
@@ -46,7 +48,6 @@ export const Header: React.FC<HeaderProps> = ({
   theme,
   onToggleTheme,
   user,
-  onSignIn,
   onSignOut,
   activeRoute,
   onNavigate,
@@ -76,21 +77,17 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-[#E7E0D3] dark:border-[#1E1E1E] bg-[#F7F5EF]/95 dark:bg-[#050505]/95 backdrop-blur-md transition-colors duration-200">
+    <header className="sticky top-0 z-40 w-full border-b border-[#E5E7EB] dark:border-white/[0.08] bg-[#FFFFFF]/90 dark:bg-[#070708]/90 backdrop-blur-md transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-[72px] flex items-center justify-between gap-4">
-        {/* Zone 1: Brand Wordmark */}
+        {/* Zone 1: Brand Lockup */}
         <button
           type="button"
           onClick={() => handleNav('home')}
-          className="inline-flex items-center gap-1.5 text-xl font-extrabold tracking-tight text-[#151515] dark:text-white whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#008C55] dark:focus-visible:outline-[#00E69A]"
+          className="inline-flex items-center gap-2 text-lg sm:text-xl font-semibold tracking-tight text-[#0A0A0C] dark:text-white whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#2F75C3] dark:focus-visible:outline-[#2F71E3]"
           aria-label="OriginSec Home"
         >
-          <span>ORIGIN</span>
-          <span className="text-[#008C55] dark:text-[#00E69A]">SEC</span>
-          <span
-            className="inline-block w-2 h-2 rounded-full bg-[#008C55] dark:bg-[#00E69A] ml-0.5"
-            aria-hidden="true"
-          />
+          <OriginSecMark className="w-6 h-6 text-[#0A0A0C] dark:text-white" />
+          <span>OriginSec</span>
         </button>
 
         {/* Zone 2: Desktop Navigation */}
@@ -104,8 +101,8 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => handleNav(item.route)}
                 className={`text-[15px] font-medium transition-colors duration-150 whitespace-nowrap shrink-0 cursor-pointer ${
                   isActive
-                    ? 'text-[#151515] dark:text-white underline underline-offset-8 decoration-[#008C55] dark:decoration-[#00E69A] decoration-2'
-                    : 'text-[#777267] dark:text-[#929292] hover:text-[#151515] dark:hover:text-white'
+                    ? 'text-[#0A0A0C] dark:text-white underline underline-offset-8 decoration-[#2F75C3] dark:decoration-[#2F71E3] decoration-2'
+                    : 'text-[#5A606E] dark:text-[#9499A6] hover:text-[#0A0A0C] dark:hover:text-white'
                 }`}
               >
                 {item.label}
@@ -122,7 +119,7 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={onOpenSearch}
               aria-label="Search scans, websites and findings"
               title="Universal Search (Ctrl+K)"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] text-[#777267] dark:text-[#929292] hover:text-[#151515] dark:hover:text-white transition-colors cursor-pointer"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs border border-[#E5E7EB] dark:border-white/[0.1] bg-[#F7F8FA] dark:bg-[#101115] text-[#5A606E] dark:text-[#9499A6] hover:text-[#0A0A0C] dark:hover:text-white transition-colors cursor-pointer"
             >
               <Search className="w-3.5 h-3.5" />
               <span className="hidden lg:inline">Search</span>
@@ -136,11 +133,11 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => handleNav('notifications')}
                 aria-label="Notifications"
                 title="Notification Centre"
-                className="relative p-2 rounded-full border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] text-[#777267] dark:text-[#929292] hover:text-[#151515] dark:hover:text-white cursor-pointer"
+                className="relative p-2 rounded-full border border-[#E5E7EB] dark:border-white/[0.1] bg-[#F7F8FA] dark:bg-[#101115] text-[#5A606E] dark:text-[#9499A6] hover:text-[#0A0A0C] dark:hover:text-white cursor-pointer"
               >
                 <Bell className="w-4 h-4" />
                 {unreadNotificationsCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 rounded-full bg-[#008C55] dark:bg-[#00E69A] text-white dark:text-[#050505] text-[10px] font-bold flex items-center justify-center tabular-nums">
+                  <span className="absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 rounded-full bg-[#2F75C3] dark:bg-[#2F71E3] text-white text-[10px] font-bold flex items-center justify-center tabular-nums">
                     {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
                   </span>
                 )}
@@ -152,7 +149,7 @@ export const Header: React.FC<HeaderProps> = ({
                   onClick={() => handleNav('admin')}
                   aria-label="Admin Overview"
                   title="Founder Admin Overview"
-                  className="p-2 rounded-full border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] text-[#008C55] dark:text-[#00E69A] hover:border-[#008C55] cursor-pointer"
+                  className="p-2 rounded-full border border-[#E5E7EB] dark:border-white/[0.1] bg-[#F7F8FA] dark:bg-[#101115] text-[#2F75C3] dark:text-[#2F71E3] hover:border-[#2F75C3] dark:hover:border-[#2F71E3] cursor-pointer"
                 >
                   <Shield className="w-4 h-4" />
                 </button>
@@ -161,7 +158,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={() => handleNav('settings')}
-                className="inline-flex items-center gap-2 text-sm font-medium text-[#151515] dark:text-white hover:opacity-80 cursor-pointer transition-opacity pl-1"
+                className="inline-flex items-center gap-2 text-sm font-medium text-[#0A0A0C] dark:text-white hover:opacity-80 cursor-pointer transition-opacity pl-1"
                 title={user.email || 'Account'}
               >
                 {user.photoURL ? (
@@ -169,10 +166,10 @@ export const Header: React.FC<HeaderProps> = ({
                     src={user.photoURL}
                     alt={user.displayName || 'Profile'}
                     referrerPolicy="no-referrer"
-                    className="w-8 h-8 rounded-full border border-[#E7E0D3] dark:border-[#252525] object-cover"
+                    className="w-8 h-8 rounded-full border border-[#E5E7EB] dark:border-white/[0.12] object-cover"
                   />
                 ) : (
-                  <span className="w-8 h-8 rounded-full bg-[#E7E0D3] dark:bg-[#252525] flex items-center justify-center">
+                  <span className="w-8 h-8 rounded-full bg-[#F1F3F6] dark:bg-[#1A1C23] flex items-center justify-center">
                     <UserIcon className="w-4 h-4" />
                   </span>
                 )}
@@ -183,39 +180,39 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={onSignOut}
                 aria-label="Sign out"
                 title="Sign out"
-                className="p-2 rounded-full text-[#777267] dark:text-[#929292] hover:text-[#151515] dark:hover:text-white transition-colors cursor-pointer"
+                className="p-2 rounded-full text-[#5A606E] dark:text-[#9499A6] hover:text-[#0A0A0C] dark:hover:text-white transition-colors cursor-pointer"
               >
                 <LogOut className="w-4 h-4" />
               </button>
             </div>
           ) : !authReady ? (
-            <span className="hidden sm:inline-flex items-center px-3 py-2 text-[12px] font-medium text-[#777267] dark:text-[#929292] whitespace-nowrap shrink-0">
+            <span className="hidden sm:inline-flex items-center px-3 py-2 text-[12px] font-medium text-[#5A606E] dark:text-[#9499A6] whitespace-nowrap shrink-0">
               Checking session...
             </span>
           ) : (
             <button
               type="button"
-              onClick={onSignIn}
+              onClick={() => handleNav('login')}
               disabled={authLoading}
-              className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-full text-[13px] font-medium border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] text-[#151515] dark:text-white hover:border-[#008C55] dark:hover:border-[#00E69A] transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+              className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-full text-[13px] font-medium bg-[#2F75C3] dark:bg-[#2F71E3] text-white hover:opacity-90 transition-opacity whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
             >
-              Sign in with Google
+              Sign in
             </button>
           )}
 
           <button
             type="button"
             onClick={onToggleTheme}
-            className="px-4 sm:px-5 py-2.5 rounded-full text-xs font-semibold tracking-wider uppercase border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] text-[#151515] dark:text-white hover:border-[#929292] dark:hover:border-[#555] transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer"
+            className="px-4 py-2 rounded-full text-xs font-medium tracking-wide border border-[#E5E7EB] dark:border-white/[0.12] bg-[#F7F8FA] dark:bg-[#101115] text-[#0A0A0C] dark:text-white hover:border-[#2F75C3] dark:hover:border-[#2F71E3] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
-            {theme === 'dark' ? 'LIGHT MODE' : 'DARK MODE'}
+            {theme === 'dark' ? 'Light' : 'Dark'}
           </button>
 
           <button
             type="button"
             onClick={() => setMobileMenuOpen((v) => !v)}
             aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
-            className="md:hidden p-2 rounded-lg border border-[#E7E0D3] dark:border-[#252525] text-[#151515] dark:text-white cursor-pointer"
+            className="md:hidden p-2 rounded-lg border border-[#E5E7EB] dark:border-white/[0.12] text-[#0A0A0C] dark:text-white cursor-pointer"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
@@ -224,7 +221,7 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Mobile Navigation Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-[#E7E0D3] dark:border-[#1E1E1E] bg-[#F7F5EF] dark:bg-[#050505] px-4 py-4 space-y-2">
+        <div className="md:hidden border-t border-[#E5E7EB] dark:border-white/[0.08] bg-[#FFFFFF] dark:bg-[#070708] px-4 py-4 space-y-2">
           {onOpenSearch && (
             <button
               type="button"
@@ -232,7 +229,7 @@ export const Header: React.FC<HeaderProps> = ({
                 setMobileMenuOpen(false);
                 onOpenSearch();
               }}
-              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium border border-[#E7E0D3] dark:border-[#252525] text-[#777267] dark:text-[#929292]"
+              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium border border-[#E5E7EB] dark:border-white/[0.1] text-[#5A606E] dark:text-[#9499A6]"
             >
               <Search className="w-4 h-4" />
               Search scans &amp; findings
@@ -245,8 +242,8 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => handleNav(item.route)}
               className={`block w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium ${
                 activeRoute === item.route
-                  ? 'bg-white dark:bg-[#0B0B0B] text-[#151515] dark:text-white border border-[#E7E0D3] dark:border-[#252525]'
-                  : 'text-[#777267] dark:text-[#929292]'
+                  ? 'bg-[#F7F8FA] dark:bg-[#101115] text-[#0A0A0C] dark:text-white border border-[#E5E7EB] dark:border-white/[0.1]'
+                  : 'text-[#5A606E] dark:text-[#9499A6]'
               }`}
             >
               {item.label}
@@ -256,7 +253,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={() => handleNav('notifications')}
-              className="block w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium text-[#777267] dark:text-[#929292]"
+              className="block w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium text-[#5A606E] dark:text-[#9499A6]"
             >
               Notifications {unreadNotificationsCount > 0 ? `(${unreadNotificationsCount})` : ''}
             </button>
@@ -265,13 +262,10 @@ export const Header: React.FC<HeaderProps> = ({
             authReady ? (
               <button
                 type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  onSignIn();
-                }}
-                className="w-full mt-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-[#151515] text-white dark:bg-white dark:text-[#050505]"
+                onClick={() => handleNav('login')}
+                className="w-full mt-2 px-4 py-2.5 rounded-full text-sm font-medium bg-[#2F75C3] dark:bg-[#2F71E3] text-white"
               >
-                Sign in with Google
+                Sign in
               </button>
             ) : null
           ) : (
@@ -281,7 +275,7 @@ export const Header: React.FC<HeaderProps> = ({
                 setMobileMenuOpen(false);
                 onSignOut();
               }}
-              className="w-full mt-2 px-4 py-2.5 rounded-lg text-sm font-medium border border-[#E7E0D3] dark:border-[#252525] text-[#777267] dark:text-[#929292]"
+              className="w-full mt-2 px-4 py-2.5 rounded-lg text-sm font-medium border border-[#E5E7EB] dark:border-white/[0.1] text-[#5A606E] dark:text-[#9499A6]"
             >
               Sign out ({user.email})
             </button>

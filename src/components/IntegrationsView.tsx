@@ -138,15 +138,15 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-[#151515] dark:text-white">Integration Center</h1>
-        <p className="text-sm text-[#777267] dark:text-[#929292]">
+        <h1 className="text-2xl font-bold tracking-tight text-[#0A0A0C] dark:text-white">Integration Center</h1>
+        <p className="text-sm text-[#5A606E] dark:text-[#9499A6]">
           Real connection status for core OriginSec services and authorized read-only infrastructure adapters. Integrations are never shown as connected without verified server credentials.
         </p>
       </div>
 
       {/* Core Platform Integrations */}
       <section className="space-y-3">
-        <h2 className="text-sm font-bold uppercase tracking-wider text-[#777267] dark:text-[#929292]">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-[#5A606E] dark:text-[#9499A6]">
           Core Platform Services
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -155,26 +155,26 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
             return (
               <div
                 key={p.id}
-                className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-5 space-y-3"
+                className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-5 space-y-3"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-2.5">
-                    <Icon className="w-5 h-5 text-[#151515] dark:text-white shrink-0" />
-                    <h3 className="text-base font-bold text-[#151515] dark:text-white">{p.name}</h3>
+                    <Icon className="w-5 h-5 text-[#2F75C3] dark:text-[#2F71E3] shrink-0" />
+                    <h3 className="text-base font-bold text-[#0A0A0C] dark:text-white">{p.name}</h3>
                   </div>
                   <span
                     className={`inline-flex items-center gap-1 text-[11px] font-mono font-semibold px-2.5 py-1 rounded-md border ${
                       p.connected
-                        ? 'border-[#008C55]/40 dark:border-[#00E69A]/40 text-[#008C55] dark:text-[#00E69A]'
-                        : 'border-[#E7E0D3] dark:border-[#252525] text-[#777267] dark:text-[#929292]'
+                        ? 'border-emerald-600/40 dark:border-emerald-400/40 text-emerald-700 dark:text-emerald-400'
+                        : 'border-[#E5E7EB] dark:border-white/[0.08] text-[#5A606E] dark:text-[#9499A6]'
                     }`}
                   >
                     {p.connected && <CheckCircle2 className="w-3 h-3" />}
                     {p.connected ? 'Connected' : 'Not configured'}
                   </span>
                 </div>
-                <p className="text-xs text-[#777267] dark:text-[#929292] leading-relaxed">{p.purpose}</p>
-                <div className="text-[11px] text-[#777267] dark:text-[#888] border-t border-[#EFECE4] dark:border-[#1A1A1A] pt-2.5 space-y-1">
+                <p className="text-xs text-[#5A606E] dark:text-[#9499A6] leading-relaxed">{p.purpose}</p>
+                <div className="text-[11px] text-[#5A606E] dark:text-[#9499A6] border-t border-[#E5E7EB] dark:border-white/[0.08] pt-2.5 space-y-1">
                   <p>
                     <strong>Scope:</strong> {p.permissions}
                   </p>
@@ -189,14 +189,14 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
       {/* Authorized Infrastructure & Database Provider Modules */}
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-[#777267] dark:text-[#929292]">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-[#5A606E] dark:text-[#9499A6]">
             Infrastructure, Database &amp; Backup Adapters
           </h2>
         </div>
 
         {setupNote && (
-          <div className="rounded-xl border border-[#E7E0D3] dark:border-[#252525] bg-[#FAF9F5] dark:bg-[#101010] p-4 text-xs text-[#151515] dark:text-[#E5E5E5] flex items-start gap-2.5">
-            <PlugZap className="w-4 h-4 text-[#008C55] dark:text-[#00E69A] shrink-0 mt-0.5" />
+          <div className="rounded-xl border border-[#2F75C3]/35 dark:border-[#2F71E3]/35 bg-[#F7F8FA] dark:bg-[#13151B] p-4 text-xs text-[#0A0A0C] dark:text-[#E5E7EB] flex items-start gap-2.5">
+            <PlugZap className="w-4 h-4 text-[#2F75C3] dark:text-[#2F71E3] shrink-0 mt-0.5" />
             <span>{setupNote}</span>
           </div>
         )}
@@ -207,19 +207,23 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
             return (
               <div
                 key={fp.provider}
-                className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-5 space-y-3"
+                className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-5 space-y-3"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2.5">
-                    <Cloud className="w-4 h-4 text-[#777267] dark:text-[#929292]" />
-                    <h3 className="text-sm font-bold text-[#151515] dark:text-white">{fp.name}</h3>
+                    <Cloud className="w-4 h-4 text-[#5A606E] dark:text-[#9499A6]" />
+                    <h3 className="text-sm font-bold text-[#0A0A0C] dark:text-white">{fp.name}</h3>
                   </div>
-                  <span className="text-[11px] font-mono text-[#777267] dark:text-[#929292]">
+                  <span
+                    className={`text-[11px] font-mono ${
+                      linked ? 'text-emerald-600 dark:text-emerald-400' : 'text-[#5A606E] dark:text-[#9499A6]'
+                    }`}
+                  >
                     {linked ? 'Connected' : 'Integration required'}
                   </span>
                 </div>
-                <p className="text-xs text-[#777267] dark:text-[#929292]">{fp.purpose}</p>
-                <p className="text-[11px] text-[#777267] dark:text-[#888]">
+                <p className="text-xs text-[#5A606E] dark:text-[#9499A6]">{fp.purpose}</p>
+                <p className="text-[11px] text-[#5A606E] dark:text-[#9499A6]">
                   <strong>Permissions:</strong> {fp.permissions}
                 </p>
                 <div className="pt-1 flex items-center justify-between">
@@ -239,7 +243,7 @@ export const IntegrationsView: React.FC<IntegrationsViewProps> = ({
                           `${fp.name} read-only connector requires server-side OAuth/API credentials configured in your Vercel Environment Variables (see README.md). OriginSec never simulates unverified provider connections.`
                         )
                       }
-                      className="px-3 py-1.5 rounded-lg text-xs font-medium border border-[#E7E0D3] dark:border-[#252525] text-[#151515] dark:text-white hover:border-[#008C55] dark:hover:border-[#00E69A] cursor-pointer"
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium border border-[#E5E7EB] dark:border-white/[0.08] text-[#0A0A0C] dark:text-white hover:border-[#2F75C3] dark:hover:border-[#2F71E3] transition-colors cursor-pointer"
                     >
                       View Setup Requirements
                     </button>

@@ -1,6 +1,6 @@
 import type { ApiProbeResult } from '../../types/audit';
-import { safeFetchText } from './engine';
-import { resolveAndVerifyHost, validateTargetUrl } from './ssrf';
+import { safeFetchText } from './engine.js';
+import { resolveAndVerifyHost, validateTargetUrl } from './ssrf.js';
 
 export interface ApiAuditRequest {
   mode: 'public' | 'verified_owner';

@@ -13,9 +13,9 @@ import type {
   TlsCertificateInfo,
   WebsiteScan,
 } from '../../types/audit';
-import { analyzeAllCategories, buildExecutiveSummary } from './analyzer';
-import { SCAN_PROFILES } from './profiles';
-import { resolveAndVerifyHost, validateTargetUrl } from './ssrf';
+import { analyzeAllCategories, buildExecutiveSummary } from './analyzer.js';
+import { SCAN_PROFILES } from './profiles.js';
+import { resolveAndVerifyHost, validateTargetUrl } from './ssrf.js';
 
 export interface ScanJobState {
   scanId: string;

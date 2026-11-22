@@ -225,6 +225,11 @@ export interface ScanFinding {
   createdAt: string;
 }
 
+export interface GroundingSource {
+  title: string;
+  uri: string;
+}
+
 export interface WebsiteScan {
   scanId: string;
   ownerUid: string;
@@ -240,6 +245,7 @@ export interface WebsiteScan {
   scores: CategoryScores;
   summary: string;
   aiExplanation?: string;
+  aiSources?: GroundingSource[];
   metrics: ScanMetrics;
   findingsCount: FindingsCount;
   scannerVersion: string;

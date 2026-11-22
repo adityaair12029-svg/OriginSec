@@ -1,8 +1,8 @@
 import crypto from 'node:crypto';
 import dns from 'node:dns/promises';
 import * as cheerio from 'cheerio';
-import { safeFetchText } from './engine';
-import { resolveAndVerifyHost, validateTargetUrl } from './ssrf';
+import { safeFetchText } from './engine.js';
+import { resolveAndVerifyHost, validateTargetUrl } from './ssrf.js';
 
 export function generateVerificationChallenge(domain: string): {
   normalizedDomain: string;

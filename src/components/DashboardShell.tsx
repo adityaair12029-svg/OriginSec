@@ -106,20 +106,20 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
           <button
             type="button"
             onClick={onOpenSearch}
-            className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl text-xs border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] text-[#777267] dark:text-[#929292] hover:border-[#008C55] cursor-pointer"
+            className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl text-xs border border-[#E5E7EB] dark:border-white/[0.08] bg-[#F7F8FA] dark:bg-[#101115] text-[#5A606E] dark:text-[#9499A6] hover:border-[#2F75C3] dark:hover:border-[#2F71E3] cursor-pointer transition-colors"
           >
             <span className="inline-flex items-center gap-2">
               <Search className="w-3.5 h-3.5" />
               Search workspace...
             </span>
-            <kbd className="px-1.5 py-0.5 rounded bg-[#EFECE4] dark:bg-[#1A1A1A] text-[10px] font-mono">⌘K</kbd>
+            <kbd className="px-1.5 py-0.5 rounded bg-[#E5E7EB] dark:bg-white/[0.08] text-[10px] font-mono">⌘K</kbd>
           </button>
         )}
 
         <nav className="flex lg:flex-col gap-5 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0">
           {groups.map((group) => (
             <div key={group.heading} className="flex lg:flex-col gap-1 shrink-0">
-              <p className="hidden lg:block px-3.5 pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#777267] dark:text-[#666]">
+              <p className="hidden lg:block px-3.5 pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#5A606E] dark:text-[#6B7280]">
                 {group.heading}
               </p>
               {group.items.map((item) => {
@@ -132,16 +132,16 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                     onClick={() => onNavigate(item.route)}
                     className={`inline-flex items-center justify-between gap-2.5 px-3.5 py-2 rounded-xl text-[13px] font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer text-left ${
                       active
-                        ? 'bg-white dark:bg-[#0B0B0B] text-[#151515] dark:text-white border border-[#E7E0D3] dark:border-[#252525]'
-                        : 'text-[#777267] dark:text-[#929292] hover:text-[#151515] dark:hover:text-white hover:bg-white/50 dark:hover:bg-[#0B0B0B]/50 border border-transparent'
+                        ? 'bg-[#F1F5FB] dark:bg-[#14171F] text-[#0A0A0C] dark:text-white border border-[#2F75C3]/35 dark:border-[#2F71E3]/40'
+                        : 'text-[#5A606E] dark:text-[#9499A6] hover:text-[#0A0A0C] dark:hover:text-white hover:bg-[#F7F8FA] dark:hover:bg-[#101115] border border-transparent'
                     }`}
                   >
                     <span className="inline-flex items-center gap-2.5">
-                      <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-[#008C55] dark:text-[#00E69A]' : ''}`} />
+                      <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-[#2F75C3] dark:text-[#2F71E3]' : ''}`} />
                       <span>{item.label}</span>
                     </span>
                     {item.badge !== undefined && item.badge > 0 && (
-                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-[#008C55]/15 text-[#008C55] dark:bg-[#00E69A]/15 dark:text-[#00E69A] tabular-nums">
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-[#2F75C3]/15 text-[#2F75C3] dark:bg-[#2F71E3]/20 dark:text-[#60A5FA] tabular-nums">
                         {item.badge}
                       </span>
                     )}
@@ -165,19 +165,19 @@ export const EmptyWorkspaceState: React.FC<{
   actionLabel?: string;
   onAction?: () => void;
 }> = ({ title, description, actionLabel, onAction }) => (
-  <div className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-10 text-center space-y-4">
-    <div className="w-10 h-10 rounded-full border border-[#E7E0D3] dark:border-[#252525] mx-auto flex items-center justify-center text-[#777267] dark:text-[#929292]">
+  <div className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-[#FFFFFF] dark:bg-[#101115] p-10 text-center space-y-4">
+    <div className="w-10 h-10 rounded-full border border-[#E5E7EB] dark:border-white/[0.1] mx-auto flex items-center justify-center text-[#5A606E] dark:text-[#9499A6]">
       <FileSearch className="w-5 h-5" />
     </div>
     <div className="space-y-1.5 max-w-md mx-auto">
-      <h3 className="text-base font-semibold text-[#151515] dark:text-white">{title}</h3>
-      <p className="text-sm text-[#777267] dark:text-[#929292]">{description}</p>
+      <h3 className="text-base font-semibold text-[#0A0A0C] dark:text-white">{title}</h3>
+      <p className="text-sm text-[#5A606E] dark:text-[#9499A6]">{description}</p>
     </div>
     {actionLabel && onAction && (
       <button
         type="button"
         onClick={onAction}
-        className="px-5 py-2.5 rounded-xl text-xs font-semibold bg-[#151515] text-white dark:bg-white dark:text-[#050505] hover:opacity-90 cursor-pointer"
+        className="px-5 py-2.5 rounded-full text-xs font-medium bg-[#2F75C3] dark:bg-[#2F71E3] text-white hover:opacity-90 cursor-pointer"
       >
         {actionLabel}
       </button>

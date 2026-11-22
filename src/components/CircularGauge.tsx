@@ -14,16 +14,16 @@ export const CircularGauge: React.FC<CircularGaugeProps> = ({ score, label }) =>
   const offset = circumference - (clamped / 100) * circumference;
 
   const getStrokeColor = (val: number | null) => {
-    if (val === null) return '#777267';
-    if (val >= 80) return '#00B871';
-    if (val >= 50) return '#B86A00';
+    if (val === null) return '#5A606E';
+    if (val >= 80) return '#2F71E3';
+    if (val >= 50) return '#D97706';
     return '#DC2626';
   };
 
   const color = getStrokeColor(score);
 
   return (
-    <div className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-7 flex flex-col items-center justify-center gap-3.5 transition-colors">
+    <div className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-[#FFFFFF] dark:bg-[#101115] p-7 flex flex-col items-center justify-center gap-3.5 transition-colors">
       <div className="relative w-[108px] h-[108px] flex items-center justify-center">
         <svg className="w-[108px] h-[108px] -rotate-90" viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
           <circle
@@ -31,7 +31,7 @@ export const CircularGauge: React.FC<CircularGaugeProps> = ({ score, label }) =>
             cy={size / 2}
             r={radius}
             fill="none"
-            className="stroke-[#EFECE4] dark:stroke-[#1E1E1E]"
+            className="stroke-[#E5E7EB] dark:stroke-white/[0.08]"
             strokeWidth={strokeWidth}
           />
           {score !== null && (
@@ -49,11 +49,11 @@ export const CircularGauge: React.FC<CircularGaugeProps> = ({ score, label }) =>
             />
           )}
         </svg>
-        <span className="absolute text-[28px] font-bold tabular-nums text-[#151515] dark:text-white">
+        <span className="absolute text-[28px] font-bold tabular-nums text-[#0A0A0C] dark:text-white">
           {score !== null ? score : 'N/A'}
         </span>
       </div>
-      <span className="text-xs font-semibold tracking-[0.18em] uppercase text-[#777267] dark:text-[#929292]">
+      <span className="text-xs font-semibold tracking-[0.18em] uppercase text-[#5A606E] dark:text-[#9499A6]">
         {label}
       </span>
     </div>

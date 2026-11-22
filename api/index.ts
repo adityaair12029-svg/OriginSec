@@ -1,11 +1,11 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { createApiApp } from '../src/lib/server/app';
 
-let cachedApp: ReturnType<typeof createApiApp> | null = null;
+let cachedApp: ((req: any, res: any) => any) | null = null;
 
-export default function handler(req: IncomingMessage, res: ServerResponse) {
+export default async function handler(req: IncomingMessage, res: ServerResponse) {
   try {
     if (!cachedApp) {
+      const { createApiApp } = await import('../src/lib/server/app.js');
       cachedApp = createApiApp();
     }
     return cachedApp(req as any, res as any);

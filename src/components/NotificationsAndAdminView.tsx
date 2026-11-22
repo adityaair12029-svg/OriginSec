@@ -50,8 +50,8 @@ export const NotificationsView: React.FC<{
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#151515] dark:text-white">Notification Centre</h1>
-          <p className="text-[15px] text-[#777267] dark:text-[#929292] mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#0A0A0C] dark:text-white">Notification Centre</h1>
+          <p className="text-[15px] text-[#5A606E] dark:text-[#9499A6] mt-1">
             Real-time audit alerts, certificate warnings, and monitoring incidents.
           </p>
         </div>
@@ -60,7 +60,7 @@ export const NotificationsView: React.FC<{
           <button
             type="button"
             onClick={() => setFilter(filter === 'all' ? 'unread' : 'all')}
-            className="px-3.5 py-2 rounded-xl text-xs font-medium border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] cursor-pointer"
+            className="px-3.5 py-2 rounded-xl text-xs font-medium border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] cursor-pointer"
           >
             {filter === 'all' ? `Unread (${unreadCount})` : 'Show All'}
           </button>
@@ -68,7 +68,7 @@ export const NotificationsView: React.FC<{
             <button
               type="button"
               onClick={() => void onMarkAllRead()}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#151515] text-white dark:bg-white dark:text-[#050505] cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#0A0A0C] text-white dark:bg-white dark:text-[#070708] cursor-pointer"
             >
               <CheckCheck className="w-3.5 h-3.5" />
               Mark All Read
@@ -79,12 +79,12 @@ export const NotificationsView: React.FC<{
 
       {/* Honest Delivery Channel Status */}
       {deliveryStatus && (
-        <div className="rounded-xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] px-5 py-3 text-xs text-[#777267] dark:text-[#929292] flex flex-wrap items-center justify-between gap-2">
+        <div className="rounded-xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] px-5 py-3 text-xs text-[#5A606E] dark:text-[#9499A6] flex flex-wrap items-center justify-between gap-2">
           <span>
-            Email Alerts: <strong className="text-[#151515] dark:text-white">{deliveryStatus.emailConfigured ? 'Active' : 'Requires RESEND_API_KEY / SMTP on server'}</strong>
+            Email Alerts: <strong className="text-[#0A0A0C] dark:text-white">{deliveryStatus.emailConfigured ? 'Active' : 'Requires RESEND_API_KEY / SMTP on server'}</strong>
           </span>
           <span>
-            Unattended Cron: <strong className="text-[#151515] dark:text-white">{deliveryStatus.cronConfigured ? 'Configured' : 'Requires CRON_SECRET on Vercel'}</strong>
+            Unattended Cron: <strong className="text-[#0A0A0C] dark:text-white">{deliveryStatus.cronConfigured ? 'Configured' : 'Requires CRON_SECRET on Vercel'}</strong>
           </span>
         </div>
       )}
@@ -101,16 +101,16 @@ export const NotificationsView: React.FC<{
               key={n.notificationId}
               className={`rounded-2xl border p-5 flex items-start justify-between gap-4 transition-colors ${
                 n.read
-                  ? 'border-[#E7E0D3] dark:border-[#222] bg-white/70 dark:bg-[#0B0B0B]/70 opacity-80'
-                  : 'border-[#008C55]/45 dark:border-[#00E69A]/45 bg-white dark:bg-[#0B0B0B]'
+                  ? 'border-[#E5E7EB] dark:border-white/[0.06] bg-white/70 dark:bg-[#101115]/70 opacity-80'
+                  : 'border-[#2F75C3]/45 dark:border-[#2F71E3]/45 bg-white dark:bg-[#101115]'
               }`}
             >
               <div className="flex items-start gap-3 min-w-0">
-                <Bell className={`w-4 h-4 shrink-0 mt-1 ${n.read ? 'text-[#777267]' : 'text-[#008C55] dark:text-[#00E69A]'}`} />
+                <Bell className={`w-4 h-4 shrink-0 mt-1 ${n.read ? 'text-[#5A606E]' : 'text-[#2F75C3] dark:text-[#2F71E3]'}`} />
                 <div className="space-y-1 min-w-0">
-                  <p className="text-sm font-bold text-[#151515] dark:text-white">{n.title}</p>
-                  <p className="text-xs text-[#777267] dark:text-[#929292]">{n.message}</p>
-                  <p className="text-[11px] font-mono text-[#777267] dark:text-[#666]">
+                  <p className="text-sm font-bold text-[#0A0A0C] dark:text-white">{n.title}</p>
+                  <p className="text-xs text-[#5A606E] dark:text-[#9499A6]">{n.message}</p>
+                  <p className="text-[11px] font-mono text-[#5A606E] dark:text-[#9499A6]">
                     {n.domain ? `${n.domain} · ` : ''}
                     {new Date(n.createdAt).toLocaleString()}
                   </p>
@@ -121,7 +121,7 @@ export const NotificationsView: React.FC<{
                 <button
                   type="button"
                   onClick={() => void onMarkRead(n.notificationId, !n.read)}
-                  className="px-3 py-1.5 rounded-lg text-[11px] font-medium border border-[#E7E0D3] dark:border-[#252525] cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg text-[11px] font-medium border border-[#E5E7EB] dark:border-white/[0.08] cursor-pointer"
                 >
                   {n.read ? 'Mark Unread' : 'Mark Read'}
                 </button>
@@ -129,7 +129,7 @@ export const NotificationsView: React.FC<{
                   type="button"
                   onClick={() => void onDelete(n.notificationId)}
                   aria-label="Delete notification"
-                  className="p-1.5 rounded-lg border border-[#E7E0D3] dark:border-[#252525] text-[#777267] hover:text-red-500 cursor-pointer"
+                  className="p-1.5 rounded-lg border border-[#E5E7EB] dark:border-white/[0.08] text-[#5A606E] hover:text-red-500 cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -176,10 +176,10 @@ export const AdminOverviewView: React.FC<{
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2.5">
-        <Shield className="w-5 h-5 text-[#008C55] dark:text-[#00E69A]" />
+        <Shield className="w-5 h-5 text-[#2F75C3] dark:text-[#2F71E3]" />
         <div>
-          <h1 className="text-2xl font-bold text-[#151515] dark:text-white">OriginSec Founder &amp; Platform Overview</h1>
-          <p className="text-xs text-[#777267] dark:text-[#929292]">
+          <h1 className="text-2xl font-bold tracking-tight text-[#0A0A0C] dark:text-white">OriginSec Founder &amp; Platform Overview</h1>
+          <p className="text-xs text-[#5A606E] dark:text-[#9499A6]">
             Protected runtime telemetry restricted to verified admin account (adityaair1.2029@gmail.com).
           </p>
         </div>
@@ -190,25 +190,25 @@ export const AdminOverviewView: React.FC<{
           {error}
         </div>
       ) : !adminData ? (
-        <div className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-6 text-xs text-[#777267]">
+        <div className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-6 text-xs text-[#5A606E] dark:text-[#9499A6]">
           Verifying admin credentials...
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-5">
-            <p className="text-xs text-[#777267]">Runtime Environment</p>
+          <div className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-5">
+            <p className="text-xs text-[#5A606E] dark:text-[#9499A6]">Runtime Environment</p>
             <p className="text-lg font-bold font-mono mt-1">{adminData.runtime} ({adminData.nodeVersion})</p>
           </div>
-          <div className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-5">
-            <p className="text-xs text-[#777267]">Process Uptime</p>
+          <div className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-5">
+            <p className="text-xs text-[#5A606E] dark:text-[#9499A6]">Process Uptime</p>
             <p className="text-lg font-bold font-mono mt-1">{adminData.uptimeSeconds}s</p>
           </div>
-          <div className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-5">
-            <p className="text-xs text-[#777267]">Verified Operator</p>
+          <div className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-5">
+            <p className="text-xs text-[#5A606E] dark:text-[#9499A6]">Verified Operator</p>
             <p className="text-sm font-bold font-mono mt-1">{adminData.adminEmail}</p>
           </div>
-          <div className="sm:col-span-2 lg:col-span-3 rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-6 space-y-2 text-xs font-mono">
-            <p className="font-bold text-sm font-sans text-[#151515] dark:text-white mb-2">Server Capability Flags (No Secrets Exposed)</p>
+          <div className="sm:col-span-2 lg:col-span-3 rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-6 space-y-2 text-xs font-mono">
+            <p className="font-bold text-sm font-sans text-[#0A0A0C] dark:text-white mb-2">Server Capability Flags (No Secrets Exposed)</p>
             <p>Gemini Server AI: {adminData.capabilities?.geminiConfigured ? 'Configured' : 'Not configured'}</p>
             <p>PageSpeed Insights Key: {adminData.capabilities?.pageSpeedConfigured ? 'Configured' : 'Not configured'}</p>
             <p>Cron Secret Guard: {adminData.capabilities?.cronSecretConfigured ? 'Configured' : 'Not configured'}</p>

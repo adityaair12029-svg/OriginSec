@@ -2,7 +2,7 @@ import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
-import { extractEndpointsFromOpenApi, runApiAudit } from '../scanner/apiAudit';
+import { extractEndpointsFromOpenApi, runApiAudit } from '../scanner/apiAudit.js';
 import {
   cancelJob,
   findInFlightJob,
@@ -12,11 +12,11 @@ import {
   safeFetchText,
   startScanJob,
   verifySpecificRemediation,
-} from '../scanner/engine';
-import { generateVerificationChallenge, verifyDomainOwnership } from '../scanner/ownership';
-import { resolveAndVerifyHost, validateTargetUrl } from '../scanner/ssrf';
-import { verifyRequestAuth } from './auth';
-import { askAiAboutScanWithGemini, explainScanFindingsWithGemini, isGeminiConfigured } from './gemini';
+} from '../scanner/engine.js';
+import { generateVerificationChallenge, verifyDomainOwnership } from '../scanner/ownership.js';
+import { resolveAndVerifyHost, validateTargetUrl } from '../scanner/ssrf.js';
+import { verifyRequestAuth } from './auth.js';
+import { askAiAboutScanWithGemini, explainScanFindingsWithGemini, isGeminiConfigured } from './gemini.js';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const isVercelRuntime = Boolean(process.env.VERCEL);
@@ -545,7 +545,11 @@ export function createApiApp() {
       return;
     }
 
-    res.json({ explanation: result.explanation, generatedAt: new Date().toISOString() });
+    res.json({
+      explanation: result.explanation,
+      sources: result.sources || [],
+      generatedAt: new Date().toISOString(),
+    });
   }));
 
   app.post('/api/ai/ask', asyncHandler(async (req, res) => {
@@ -576,7 +580,11 @@ export function createApiApp() {
       return;
     }
 
-    res.json({ answer: result.answer, answeredAt: new Date().toISOString() });
+    res.json({
+      answer: result.answer,
+      sources: result.sources || [],
+      answeredAt: new Date().toISOString(),
+    });
   }));
 
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

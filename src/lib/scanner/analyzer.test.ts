@@ -11,6 +11,8 @@ import { compareTwoScans } from './profiles';
 import { runScanJobAndWait } from './engine';
 import { createApiApp } from '../server/app';
 import { buildScanHistoryCsvContent } from '../export/exporters';
+import { buildWebsiteScoreTrends } from './trends';
+import { extractGroundingSources } from '../server/gemini';
 import type { ScanCoverage, WebsiteScan } from '../../types/audit';
 
 function makeCoverage(): ScanCoverage {
@@ -396,3 +398,47 @@ test('buildScanHistoryCsvContent formats multi-row scan history with escaped CSV
   assert.ok(lines[1].includes('"scan_1","example.com","https://example.com/"'));
   assert.ok(lines[1].includes('"78","65","82","90","74"'));
 });
+
+test('buildWebsiteScoreTrends returns last 5 scans chronologically for selected website with security delta', () => {
+  const makeStub = (id: string, domain: string, sec: number, overall: number, iso: string) =>
+    ({
+      scanId: id,
+      normalizedDomain: domain,
+      status: 'completed',
+      startedAt: iso,
+      scores: { security: sec, frontend: 80, backend: 80, engagement: 80, overall },
+    }) as unknown as WebsiteScan;
+
+  const scans = [
+    makeStub('s7', 'other.dev', 95, 92, '2026-11-22T07:00:00Z'),
+    makeStub('s6', 'example.com', 84, 86, '2026-11-22T06:00:00Z'),
+    makeStub('s5', 'example.com', 78, 82, '2026-11-22T05:00:00Z'),
+    makeStub('s4', 'example.com', 72, 76, '2026-11-22T04:00:00Z'),
+    makeStub('s3', 'example.com', 66, 70, '2026-11-22T03:00:00Z'),
+    makeStub('s2', 'example.com', 60, 68, '2026-11-22T02:00:00Z'),
+    makeStub('s1', 'example.com', 50, 60, '2026-11-22T01:00:00Z'),
+  ];
+
+  const trend = buildWebsiteScoreTrends(scans, 'example.com', 5);
+  assert.equal(trend.points.length, 5);
+  assert.deepEqual(
+    trend.points.map((p) => p.scanId),
+    ['s2', 's3', 's4', 's5', 's6']
+  );
+  assert.equal(trend.latestSecurity, 84);
+  assert.equal(trend.securityDelta, 6);
+  assert.equal(trend.overallDelta, 4);
+});
+
+test('extractGroundingSources deduplicates verified HTTP/HTTPS links and filters unsafe URIs', () => {
+  const sources = extractGroundingSources([
+    { web: { uri: 'https://owasp.org/www-project-secure-headers/', title: 'OWASP Secure Headers' } },
+    { web: { uri: 'https://owasp.org/www-project-secure-headers/', title: 'Duplicate' } },
+    { web: { uri: 'javascript:alert(1)', title: 'Bad URI' } },
+    { web: { uri: 'https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP', title: 'MDN CSP Guide' } },
+  ]);
+  assert.equal(sources.length, 2);
+  assert.equal(sources[0].title, 'OWASP Secure Headers');
+  assert.equal(sources[1].uri, 'https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP');
+});
+

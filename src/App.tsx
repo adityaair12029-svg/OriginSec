@@ -46,6 +46,7 @@ import {
 import { ORDERED_PROGRESS_STAGES, SCAN_PROFILES } from './lib/scanner/profiles';
 import type {
   BackupStatusRecord,
+  GroundingSource,
   IntegrationRecord,
   MonitoringEvent,
   MonitoringTarget,
@@ -63,6 +64,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { Header, type AppRoute } from './components/Header';
 import { Footer } from './components/Footer';
 import { LandingHome } from './components/LandingHome';
+import { LoginView } from './components/LoginView';
 import { ScanProgressView, type ActiveScanProgress } from './components/ScanProgressView';
 import { AuditReportView } from './components/AuditReportView';
 import { DashboardShell } from './components/DashboardShell';
@@ -248,6 +250,14 @@ export default function App() {
       if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
     };
   }, []);
+
+  // Automatically navigate from login screen once authenticated
+  useEffect(() => {
+    if (user && route === 'login') {
+      setAuthNotice(null);
+      setRoute('dashboard');
+    }
+  }, [user, route]);
 
   const getAuthToken = useCallback(async (): Promise<string | null> => {
     const activeUser = user || auth?.currentUser;
@@ -656,7 +666,10 @@ export default function App() {
     });
   };
 
-  const handleGenerateAiBrief = async (scan: WebsiteScan, audience: 'owner' | 'developer') => {
+  const handleGenerateAiBrief = async (
+    scan: WebsiteScan,
+    audience: 'owner' | 'developer'
+  ): Promise<{ text: string; sources?: GroundingSource[] } | null> => {
     setIsGeneratingAi(true);
     setAiError(null);
     try {
@@ -674,11 +687,14 @@ export default function App() {
         setAiError(data?.error || `Could not generate AI brief (HTTP ${res.status}).`);
         return null;
       }
+      const sources: GroundingSource[] = Array.isArray(data.sources) ? data.sources : [];
       if (user && data.explanation) {
         await attachAiExplanationToScan(scan.scanId, data.explanation).catch(() => {});
       }
-      setSelectedReport((prev) => (prev ? { ...prev, aiExplanation: data.explanation } : prev));
-      return data.explanation as string;
+      setSelectedReport((prev) =>
+        prev ? { ...prev, aiExplanation: data.explanation, aiSources: sources } : prev
+      );
+      return { text: data.explanation as string, sources };
     } catch (err) {
       setAiError(err instanceof Error ? err.message : 'Network error calling AI service.');
       return null;
@@ -687,7 +703,10 @@ export default function App() {
     }
   };
 
-  const handleAskAiQuestion = async (scan: WebsiteScan, question: string) => {
+  const handleAskAiQuestion = async (
+    scan: WebsiteScan,
+    question: string
+  ): Promise<{ text: string; sources?: GroundingSource[] } | null> => {
     setAiError(null);
     try {
       const token = await getAuthToken();
@@ -704,7 +723,8 @@ export default function App() {
         setAiError(data?.error || `AI Q&A unavailable (HTTP ${res.status}).`);
         return null;
       }
-      return data.answer as string;
+      const sources: GroundingSource[] = Array.isArray(data.sources) ? data.sources : [];
+      return { text: data.answer as string, sources };
     } catch (err) {
       setAiError(err instanceof Error ? err.message : 'Network error calling AI Q&A.');
       return null;
@@ -765,11 +785,12 @@ export default function App() {
     };
   }, [universalQuery, allScans, websites, remediationTasks]);
 
-  const isDashboardWorkspaceRoute = route !== 'home' && route !== 'scan' && route !== 'report';
+  const isDashboardWorkspaceRoute =
+    route !== 'home' && route !== 'login' && route !== 'scan' && route !== 'report';
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen flex flex-col bg-[#F7F5EF] dark:bg-[#050505] text-[#151515] dark:text-white">
+      <div className="min-h-screen flex flex-col bg-[#FFFFFF] dark:bg-[#070708] text-[#0A0A0C] dark:text-white transition-colors duration-200">
         <Header
           theme={theme}
           onToggleTheme={handleToggleTheme}
@@ -787,7 +808,7 @@ export default function App() {
           onOpenSearch={() => setSearchOpen(true)}
         />
 
-        {authNotice && (
+        {authNotice && route !== 'login' && (
           <div className="max-w-4xl mx-auto mt-4 px-4 w-full">
             <div className="rounded-xl border border-amber-400/50 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-800 dark:text-amber-300 flex items-center justify-between gap-2">
               <span>{authNotice}</span>
@@ -800,9 +821,23 @@ export default function App() {
 
         {route === 'home' && (
           <LandingHome
+            theme={theme}
             onStartScan={handleStartScan}
             isSubmitting={isSubmittingScan}
             errorMessage={scanSubmitError}
+          />
+        )}
+
+        {route === 'login' && (
+          <LoginView
+            theme={theme}
+            authLoading={authLoading}
+            authNotice={authNotice}
+            onGoogleSignIn={handleSignIn}
+            onContinueAsGuest={() => {
+              setAuthNotice(null);
+              setRoute('home');
+            }}
           />
         )}
 
@@ -1050,24 +1085,24 @@ export default function App() {
             onClick={() => setSearchOpen(false)}
           >
             <div
-              className="max-w-xl w-full rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] shadow-2xl overflow-hidden"
+              className="max-w-xl w-full rounded-2xl border border-[#E5E7EB] dark:border-white/[0.1] bg-white dark:bg-[#101115] shadow-2xl overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center gap-3 px-4 py-3.5 border-b border-[#E7E0D3] dark:border-[#1E1E1E]">
-                <Search className="w-4 h-4 text-[#777267]" />
+              <div className="flex items-center gap-3 px-4 py-3.5 border-b border-[#E5E7EB] dark:border-white/[0.08]">
+                <Search className="w-4 h-4 text-[#5A606E] dark:text-[#9499A6]" />
                 <input
                   type="text"
                   autoFocus
                   value={universalQuery}
                   onChange={(e) => setUniversalQuery(e.target.value)}
                   placeholder="Search websites, scan domains, or remediation findings..."
-                  className="flex-1 bg-transparent text-sm text-[#151515] dark:text-white focus:outline-none"
+                  className="flex-1 bg-transparent text-sm text-[#0A0A0C] dark:text-white focus:outline-none"
                 />
                 <button
                   type="button"
                   onClick={() => setSearchOpen(false)}
                   aria-label="Close search"
-                  className="p-1 text-[#777267] hover:text-[#151515] dark:hover:text-white cursor-pointer"
+                  className="p-1 text-[#5A606E] dark:text-[#9499A6] hover:text-[#0A0A0C] dark:hover:text-white cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -1075,7 +1110,7 @@ export default function App() {
               <div className="max-h-80 overflow-y-auto p-3 space-y-4 text-xs">
                 {searchResults.scans.length > 0 && (
                   <div className="space-y-1">
-                    <p className="px-2 font-semibold uppercase tracking-wider text-[10px] text-[#777267]">Audited Scans</p>
+                    <p className="px-2 font-semibold uppercase tracking-wider text-[10px] text-[#5A606E] dark:text-[#9499A6]">Audited Scans</p>
                     {searchResults.scans.map((s) => (
                       <button
                         key={s.scanId}
@@ -1084,10 +1119,10 @@ export default function App() {
                           setSearchOpen(false);
                           void handleOpenReport(s);
                         }}
-                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#FAF9F5] dark:hover:bg-[#141414] flex items-center justify-between cursor-pointer"
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#F7F8FA] dark:hover:bg-white/[0.05] flex items-center justify-between cursor-pointer"
                       >
-                        <span className="font-medium text-[#151515] dark:text-white">{s.normalizedDomain}</span>
-                        <span className="font-mono text-[#777267]">{s.scores?.overall ?? 'N/A'}/100</span>
+                        <span className="font-medium text-[#0A0A0C] dark:text-white">{s.normalizedDomain}</span>
+                        <span className="font-mono text-[#5A606E] dark:text-[#9499A6]">{s.scores?.overall ?? 'N/A'}/100</span>
                       </button>
                     ))}
                   </div>
@@ -1095,7 +1130,7 @@ export default function App() {
 
                 {searchResults.websites.length > 0 && (
                   <div className="space-y-1">
-                    <p className="px-2 font-semibold uppercase tracking-wider text-[10px] text-[#777267]">My Websites</p>
+                    <p className="px-2 font-semibold uppercase tracking-wider text-[10px] text-[#5A606E] dark:text-[#9499A6]">My Websites</p>
                     {searchResults.websites.map((w) => (
                       <button
                         key={w.websiteId}
@@ -1104,10 +1139,10 @@ export default function App() {
                           setSearchOpen(false);
                           setRoute('websites');
                         }}
-                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#FAF9F5] dark:hover:bg-[#141414] flex items-center justify-between cursor-pointer"
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#F7F8FA] dark:hover:bg-white/[0.05] flex items-center justify-between cursor-pointer"
                       >
-                        <span className="font-medium text-[#151515] dark:text-white">{w.name}</span>
-                        <span className="font-mono text-[#777267]">{w.normalizedDomain}</span>
+                        <span className="font-medium text-[#0A0A0C] dark:text-white">{w.name}</span>
+                        <span className="font-mono text-[#5A606E] dark:text-[#9499A6]">{w.normalizedDomain}</span>
                       </button>
                     ))}
                   </div>
@@ -1115,7 +1150,7 @@ export default function App() {
 
                 {searchResults.tasks.length > 0 && (
                   <div className="space-y-1">
-                    <p className="px-2 font-semibold uppercase tracking-wider text-[10px] text-[#777267]">Remediation Tasks</p>
+                    <p className="px-2 font-semibold uppercase tracking-wider text-[10px] text-[#5A606E] dark:text-[#9499A6]">Remediation Tasks</p>
                     {searchResults.tasks.map((t) => (
                       <button
                         key={t.taskId}
@@ -1124,10 +1159,10 @@ export default function App() {
                           setSearchOpen(false);
                           setRoute('remediation');
                         }}
-                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#FAF9F5] dark:hover:bg-[#141414] flex items-center justify-between cursor-pointer"
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#F7F8FA] dark:hover:bg-white/[0.05] flex items-center justify-between cursor-pointer"
                       >
-                        <span className="font-medium text-[#151515] dark:text-white truncate pr-2">{t.title}</span>
-                        <span className="font-mono text-[#777267] uppercase">{t.status}</span>
+                        <span className="font-medium text-[#0A0A0C] dark:text-white truncate pr-2">{t.title}</span>
+                        <span className="font-mono text-[#5A606E] dark:text-[#9499A6] uppercase">{t.status}</span>
                       </button>
                     ))}
                   </div>
@@ -1136,7 +1171,7 @@ export default function App() {
                 {searchResults.scans.length === 0 &&
                   searchResults.websites.length === 0 &&
                   searchResults.tasks.length === 0 && (
-                    <p className="text-center py-6 text-[#777267]">No matching scans, websites, or findings.</p>
+                    <p className="text-center py-6 text-[#5A606E] dark:text-[#9499A6]">No matching scans, websites, or findings.</p>
                   )}
               </div>
             </div>

@@ -28,15 +28,15 @@ const ScanSelectorHeader: React.FC<{
 }> = ({ title, subtitle, scans, activeScan, onSelect, onOpenReport }) => (
   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
     <div>
-      <h1 className="text-2xl sm:text-3xl font-bold text-[#151515] dark:text-white">{title}</h1>
-      <p className="text-[15px] text-[#777267] dark:text-[#929292] mt-1">{subtitle}</p>
+      <h1 className="text-2xl sm:text-3xl font-bold text-[#0A0A0C] dark:text-white">{title}</h1>
+      <p className="text-[15px] text-[#5A606E] dark:text-[#9499A6] mt-1">{subtitle}</p>
     </div>
     <div className="flex flex-wrap items-center gap-2 shrink-0">
       <select
         value={activeScan.scanId}
         onChange={(e) => onSelect(e.target.value)}
         aria-label="Select audited scan"
-        className="px-3.5 py-2 rounded-xl text-xs border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] text-[#151515] dark:text-white cursor-pointer"
+        className="px-3.5 py-2 rounded-xl text-xs border border-[#E5E7EB] dark:border-white/[0.1] bg-white dark:bg-[#101115] text-[#0A0A0C] dark:text-white cursor-pointer"
       >
         {scans.map((s) => (
           <option key={s.scanId} value={s.scanId}>
@@ -47,7 +47,7 @@ const ScanSelectorHeader: React.FC<{
       <button
         type="button"
         onClick={() => onOpenReport(activeScan)}
-        className="px-3.5 py-2 rounded-xl text-xs font-semibold border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] text-[#151515] dark:text-white hover:border-[#008C55] cursor-pointer"
+        className="px-3.5 py-2 rounded-full text-xs font-semibold border border-[#E5E7EB] dark:border-white/[0.1] bg-white dark:bg-[#101115] text-[#0A0A0C] dark:text-white hover:border-[#2F75C3] dark:hover:border-[#2F71E3] cursor-pointer"
       >
         Full Report
       </button>
@@ -98,26 +98,26 @@ export const FrontendIntelligenceView: React.FC<{
           { label: 'Missing Lazy Hint', value: `${fd?.imagesWithoutLazyLoading ?? 0}` },
           { label: 'HTML Weight', value: m?.htmlSizeBytes ? `${(m.htmlSizeBytes / 1024).toFixed(1)} KB` : 'N/A' },
         ].map((card) => (
-          <div key={card.label} className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-4">
-            <p className="text-xs text-[#777267] dark:text-[#929292]">{card.label}</p>
-            <p className="text-xl font-bold font-mono tabular-nums text-[#151515] dark:text-white mt-1">{card.value}</p>
+          <div key={card.label} className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-4">
+            <p className="text-xs text-[#5A606E] dark:text-[#9499A6]">{card.label}</p>
+            <p className="text-xl font-bold font-mono tabular-nums text-[#0A0A0C] dark:text-white mt-1">{card.value}</p>
           </div>
         ))}
       </div>
 
       {/* Crawled Same-Origin Pages */}
-      <section className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-6 space-y-3">
+      <section className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-6 space-y-3">
         <div className="flex items-center gap-2">
-          <Layers className="w-4 h-4 text-[#008C55] dark:text-[#00E69A]" />
-          <h2 className="text-base font-bold text-[#151515] dark:text-white">
+          <Layers className="w-4 h-4 text-[#2F75C3] dark:text-[#2F71E3]" />
+          <h2 className="text-base font-bold text-[#0A0A0C] dark:text-white">
             Crawled Pages ({m?.crawledUrls?.length ?? activeScan.coverage?.pagesScanned ?? 1})
           </h2>
         </div>
         {m?.crawledPageDetails && m.crawledPageDetails.length > 0 ? (
-          <ul className="space-y-1.5 text-xs font-mono text-[#777267] dark:text-[#929292]">
+          <ul className="space-y-1.5 text-xs font-mono text-[#5A606E] dark:text-[#9499A6]">
             {m.crawledPageDetails.map((pg) => (
-              <li key={pg.url} className="flex items-center justify-between gap-3 py-1.5 border-b border-[#EFECE4] dark:border-[#181818] last:border-b-0">
-                <span className="truncate text-[#151515] dark:text-white">{pg.url}</span>
+              <li key={pg.url} className="flex items-center justify-between gap-3 py-1.5 border-b border-[#E5E7EB] dark:border-white/[0.06] last:border-b-0">
+                <span className="truncate text-[#0A0A0C] dark:text-white">{pg.url}</span>
                 <span className="shrink-0 text-[11px] tabular-nums">
                   HTTP {pg.statusCode || 'ERR'} · {pg.ttfbMs}ms
                 </span>
@@ -125,15 +125,15 @@ export const FrontendIntelligenceView: React.FC<{
             ))}
           </ul>
         ) : m?.crawledUrls && m.crawledUrls.length > 0 ? (
-          <ul className="space-y-1.5 text-xs font-mono text-[#777267] dark:text-[#929292]">
+          <ul className="space-y-1.5 text-xs font-mono text-[#5A606E] dark:text-[#9499A6]">
             {m.crawledUrls.map((u) => (
-              <li key={u} className="truncate py-1 border-b border-[#EFECE4] dark:border-[#181818] last:border-b-0">
+              <li key={u} className="truncate py-1 border-b border-[#E5E7EB] dark:border-white/[0.06] last:border-b-0">
                 {u}
               </li>
             ))}
           </ul>
         ) : (
-          <p className="text-xs text-[#777267] dark:text-[#929292]">
+          <p className="text-xs text-[#5A606E] dark:text-[#9499A6]">
             Primary target audited: <span className="font-mono">{activeScan.targetUrl}</span>
           </p>
         )}
@@ -189,37 +189,37 @@ export const SeoContentView: React.FC<{
       />
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-4">
-          <p className="text-xs text-[#777267] dark:text-[#929292]">SEO Score</p>
+        <div className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-4">
+          <p className="text-xs text-[#5A606E] dark:text-[#9499A6]">SEO Score</p>
           <p className="text-xl font-bold font-mono tabular-nums mt-1">{activeScan.scores?.seo ?? activeScan.scores?.engagement ?? 'N/A'}/100</p>
         </div>
-        <div className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-4">
-          <p className="text-xs text-[#777267] dark:text-[#929292]">H1 / H2 / H3 Count</p>
+        <div className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-4">
+          <p className="text-xs text-[#5A606E] dark:text-[#9499A6]">H1 / H2 / H3 Count</p>
           <p className="text-xl font-bold font-mono tabular-nums mt-1">
             {hc ? `${hc.h1} / ${hc.h2} / ${hc.h3}` : 'N/A'}
           </p>
         </div>
-        <div className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-4">
-          <p className="text-xs text-[#777267] dark:text-[#929292]">Total Links</p>
+        <div className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-4">
+          <p className="text-xs text-[#5A606E] dark:text-[#9499A6]">Total Links</p>
           <p className="text-xl font-bold font-mono tabular-nums mt-1">{activeScan.metrics?.linkCount ?? 0}</p>
         </div>
-        <div className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-4">
-          <p className="text-xs text-[#777267] dark:text-[#929292]">Broken Links</p>
+        <div className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-4">
+          <p className="text-xs text-[#5A606E] dark:text-[#9499A6]">Broken Links</p>
           <p className="text-xl font-bold font-mono tabular-nums mt-1">{activeScan.metrics?.brokenInternalLinks ?? 0}</p>
         </div>
       </div>
 
-      <section className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-6 grid grid-cols-1 md:grid-cols-2 gap-3.5">
+      <section className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-6 grid grid-cols-1 md:grid-cols-2 gap-3.5">
         {checks.map((c) => (
-          <div key={c.label} className="rounded-xl border border-[#E7E0D3] dark:border-[#222] bg-[#FAF9F5] dark:bg-[#101010] p-4 flex items-start justify-between gap-3">
+          <div key={c.label} className="rounded-xl border border-[#E5E7EB] dark:border-white/[0.08] bg-[#F7F8FA] dark:bg-[#13151B] p-4 flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-[#151515] dark:text-white flex items-center gap-1.5">
-                <Globe className="w-3.5 h-3.5 text-[#008C55] dark:text-[#00E69A] shrink-0" />
+              <p className="text-sm font-semibold text-[#0A0A0C] dark:text-white flex items-center gap-1.5">
+                <Globe className="w-3.5 h-3.5 text-[#2F75C3] dark:text-[#2F71E3] shrink-0" />
                 {c.label}
               </p>
-              <p className="text-xs font-mono text-[#777267] dark:text-[#929292] mt-1 truncate">{c.detail}</p>
+              <p className="text-xs font-mono text-[#5A606E] dark:text-[#9499A6] mt-1 truncate">{c.detail}</p>
             </div>
-            <span className={`px-2 py-0.5 rounded text-[11px] font-bold shrink-0 ${c.ok ? 'bg-[#008C55]/15 text-[#008C55] dark:text-[#00E69A]' : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'}`}>
+            <span className={`px-2 py-0.5 rounded text-[11px] font-bold shrink-0 ${c.ok ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400' : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'}`}>
               {c.ok ? 'PASS' : 'CHECK'}
             </span>
           </div>
@@ -275,32 +275,32 @@ export const PerformanceLabView: React.FC<{
           { label: 'Warm TTFB (Re-check)', value: `${tb?.warmTtfbMs ?? m?.ttfbMs ?? 'N/A'} ms` },
           { label: 'Compression', value: m?.compression || 'None' },
         ].map((card) => (
-          <div key={card.label} className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-4">
-            <p className="text-xs text-[#777267] dark:text-[#929292]">{card.label}</p>
+          <div key={card.label} className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-4">
+            <p className="text-xs text-[#5A606E] dark:text-[#9499A6]">{card.label}</p>
             <p className="text-xl font-bold font-mono tabular-nums mt-1">{card.value}</p>
           </div>
         ))}
       </div>
 
       {/* Request Waterfall */}
-      <section className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-6 space-y-4">
+      <section className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-6 space-y-4">
         <div className="flex items-center gap-2">
-          <Gauge className="w-4 h-4 text-[#008C55] dark:text-[#00E69A]" />
-          <h2 className="text-base font-bold text-[#151515] dark:text-white">Measured Network Waterfall</h2>
+          <Gauge className="w-4 h-4 text-[#2F75C3] dark:text-[#2F71E3]" />
+          <h2 className="text-base font-bold text-[#0A0A0C] dark:text-white">Measured Network Waterfall</h2>
         </div>
         <div className="space-y-3 text-xs">
           {[
             { label: 'DNS Resolution', ms: tb?.dnsLookupMs ?? 0, color: 'bg-sky-500' },
             { label: 'TLS Handshake', ms: tb?.tlsHandshakeMs ?? 0, color: 'bg-indigo-500' },
-            { label: 'First Byte (TTFB)', ms: tb?.ttfbMs ?? m?.ttfbMs ?? 0, color: 'bg-[#008C55] dark:bg-[#00E69A]' },
+            { label: 'First Byte (TTFB)', ms: tb?.ttfbMs ?? m?.ttfbMs ?? 0, color: 'bg-[#2F75C3] dark:bg-[#2F71E3]' },
             { label: 'Content Transfer', ms: tb?.contentTransferMs ?? Math.max(0, (m?.totalResponseTimeMs || 0) - (m?.ttfbMs || 0)), color: 'bg-amber-500' },
           ].map((row) => (
             <div key={row.label} className="space-y-1">
               <div className="flex justify-between font-mono">
-                <span className="text-[#151515] dark:text-white">{row.label}</span>
-                <span className="text-[#777267] dark:text-[#929292]">{row.ms} ms</span>
+                <span className="text-[#0A0A0C] dark:text-white">{row.label}</span>
+                <span className="text-[#5A606E] dark:text-[#9499A6]">{row.ms} ms</span>
               </div>
-              <div className="w-full h-2 rounded-full bg-[#EFECE4] dark:bg-[#1B1B1B] overflow-hidden">
+              <div className="w-full h-2 rounded-full bg-[#F1F3F6] dark:bg-white/[0.08] overflow-hidden">
                 <div className={`h-full rounded-full ${row.color}`} style={{ width: `${Math.min(100, Math.max(2, (row.ms / totalTime) * 100))}%` }} />
               </div>
             </div>
@@ -309,31 +309,31 @@ export const PerformanceLabView: React.FC<{
       </section>
 
       {/* Google PageSpeed / Lighthouse Section */}
-      <section className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-6 space-y-3">
-        <h2 className="text-base font-bold text-[#151515] dark:text-white">
+      <section className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-6 space-y-3">
+        <h2 className="text-base font-bold text-[#0A0A0C] dark:text-white">
           Google PageSpeed Insights &amp; Core Web Vitals
         </h2>
         {lh?.available ? (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-mono">
-            <div className="p-3 rounded-xl bg-[#FAF9F5] dark:bg-[#101010] border border-[#E7E0D3] dark:border-[#222]">
-              <p className="text-[#777267]">Lighthouse Perf</p>
+            <div className="p-3 rounded-xl bg-[#F7F8FA] dark:bg-[#13151B] border border-[#E5E7EB] dark:border-white/[0.08]">
+              <p className="text-[#5A606E] dark:text-[#9499A6]">Lighthouse Perf</p>
               <p className="text-lg font-bold mt-1">{lh.performanceScore ?? '—'}/100</p>
             </div>
-            <div className="p-3 rounded-xl bg-[#FAF9F5] dark:bg-[#101010] border border-[#E7E0D3] dark:border-[#222]">
-              <p className="text-[#777267]">LCP</p>
+            <div className="p-3 rounded-xl bg-[#F7F8FA] dark:bg-[#13151B] border border-[#E5E7EB] dark:border-white/[0.08]">
+              <p className="text-[#5A606E] dark:text-[#9499A6]">LCP</p>
               <p className="text-lg font-bold mt-1">{lh.lcpMs ?? '—'} ms</p>
             </div>
-            <div className="p-3 rounded-xl bg-[#FAF9F5] dark:bg-[#101010] border border-[#E7E0D3] dark:border-[#222]">
-              <p className="text-[#777267]">CLS</p>
+            <div className="p-3 rounded-xl bg-[#F7F8FA] dark:bg-[#13151B] border border-[#E5E7EB] dark:border-white/[0.08]">
+              <p className="text-[#5A606E] dark:text-[#9499A6]">CLS</p>
               <p className="text-lg font-bold mt-1">{lh.cls ?? '—'}</p>
             </div>
-            <div className="p-3 rounded-xl bg-[#FAF9F5] dark:bg-[#101010] border border-[#E7E0D3] dark:border-[#222]">
-              <p className="text-[#777267]">Data Source</p>
+            <div className="p-3 rounded-xl bg-[#F7F8FA] dark:bg-[#13151B] border border-[#E5E7EB] dark:border-white/[0.08]">
+              <p className="text-[#5A606E] dark:text-[#9499A6]">Data Source</p>
               <p className="text-sm font-bold mt-1">{lh.dataType}</p>
             </div>
           </div>
         ) : (
-          <p className="text-xs text-[#777267] dark:text-[#929292]">
+          <p className="text-xs text-[#5A606E] dark:text-[#9499A6]">
             {lh?.errorNote || 'PageSpeed Insights API key not configured on server (PAGESPEED_API_KEY optional). Timing above reflects live HTTP/TLS probes.'}
           </p>
         )}
@@ -341,8 +341,8 @@ export const PerformanceLabView: React.FC<{
 
       {/* Historical Domain TTFB Chart */}
       {domainHistory.length > 1 && (
-        <section className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-6 space-y-3">
-          <h2 className="text-base font-bold text-[#151515] dark:text-white">
+        <section className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-6 space-y-3">
+          <h2 className="text-base font-bold text-[#0A0A0C] dark:text-white">
             Recorded TTFB Trend — {activeScan.normalizedDomain}
           </h2>
           <div className="flex items-end gap-3 h-28 pt-2">
@@ -352,9 +352,9 @@ export const PerformanceLabView: React.FC<{
               const pct = Math.max(10, Math.round((val / maxTtfb) * 100));
               return (
                 <div key={item.scanId} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-                  <span className="text-[10px] font-mono tabular-nums text-[#777267] dark:text-[#929292]">{val}ms</span>
-                  <div className="w-full max-w-[36px] rounded-t-md bg-[#008C55]/80 dark:bg-[#00E69A]/80" style={{ height: `${pct}%` }} />
-                  <span className="text-[10px] text-[#777267] truncate w-full text-center">
+                  <span className="text-[10px] font-mono tabular-nums text-[#5A606E] dark:text-[#9499A6]">{val}ms</span>
+                  <div className="w-full max-w-[36px] rounded-t-md bg-[#2F75C3]/85 dark:bg-[#2F71E3]/85" style={{ height: `${pct}%` }} />
+                  <span className="text-[10px] text-[#5A606E] dark:text-[#9499A6] truncate w-full text-center">
                     {new Date(item.startedAt).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}
                   </span>
                 </div>
@@ -409,9 +409,9 @@ export const AccessibilityView: React.FC<{
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-5">
-          <p className="text-xs text-[#777267] dark:text-[#929292] flex items-center gap-1.5">
-            <Accessibility className="w-4 h-4 text-[#008C55] dark:text-[#00E69A]" />
+        <div className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-5">
+          <p className="text-xs text-[#5A606E] dark:text-[#9499A6] flex items-center gap-1.5">
+            <Accessibility className="w-4 h-4 text-[#2F75C3] dark:text-[#2F71E3]" />
             Static Accessibility Score
           </p>
           <p className="text-3xl font-bold font-mono tabular-nums mt-2">
@@ -421,23 +421,23 @@ export const AccessibilityView: React.FC<{
         <div className="md:col-span-2 rounded-2xl border border-amber-500/35 bg-amber-500/5 p-5 flex items-start gap-3">
           <Eye className="w-5 h-5 text-amber-600 dark:text-amber-300 shrink-0 mt-0.5" />
           <div className="space-y-1 text-xs">
-            <p className="font-bold text-[#151515] dark:text-white">Manual Review Required for Full WCAG 2.1 AA Compliance</p>
-            <p className="text-[#777267] dark:text-[#929292] leading-relaxed">
+            <p className="font-bold text-[#0A0A0C] dark:text-white">Manual Review Required for Full WCAG 2.1 AA Compliance</p>
+            <p className="text-[#5A606E] dark:text-[#9499A6] leading-relaxed">
               Static HTML parsing accurately checks semantic markup, alt text, labels, and heading order, but cannot measure rendered CSS color contrast, focus visibility, or keyboard trap behavior without an interactive browser pass.
             </p>
           </div>
         </div>
       </div>
 
-      <section className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <section className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
         {wcagChecks.map((item) => (
-          <div key={item.label} className="rounded-xl border border-[#E7E0D3] dark:border-[#222] bg-[#FAF9F5] dark:bg-[#101010] p-4 flex items-center justify-between gap-3">
+          <div key={item.label} className="rounded-xl border border-[#E5E7EB] dark:border-white/[0.08] bg-[#F7F8FA] dark:bg-[#13151B] p-4 flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-[#151515] dark:text-white">{item.label}</p>
-              <p className="text-xs font-mono text-[#777267] dark:text-[#929292] mt-0.5">{item.value}</p>
+              <p className="text-sm font-semibold text-[#0A0A0C] dark:text-white">{item.label}</p>
+              <p className="text-xs font-mono text-[#5A606E] dark:text-[#9499A6] mt-0.5">{item.value}</p>
             </div>
             {item.ok ? (
-              <CheckCircle2 className="w-5 h-5 text-[#008C55] dark:text-[#00E69A] shrink-0" />
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
             ) : (
               <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
             )}
@@ -470,21 +470,21 @@ export const BackendAssessmentView: React.FC<{
         />
       ) : (
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#151515] dark:text-white">Backend Assessment</h1>
-          <p className="text-[15px] text-[#777267] dark:text-[#929292] mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#0A0A0C] dark:text-white">Backend Assessment</h1>
+          <p className="text-[15px] text-[#5A606E] dark:text-[#9499A6] mt-1">
             External HTTP/TLS behavior vs. authorized private backend inspection.
           </p>
         </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <section className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-6 space-y-4">
+        <section className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-6 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-[#151515] dark:text-white flex items-center gap-2">
-              <Server className="w-4 h-4 text-[#008C55] dark:text-[#00E69A]" />
+            <h2 className="text-base font-bold text-[#0A0A0C] dark:text-white flex items-center gap-2">
+              <Server className="w-4 h-4 text-[#2F75C3] dark:text-[#2F71E3]" />
               Publicly Observed Backend Signals
             </h2>
-            <span className="text-xs font-mono text-[#008C55] dark:text-[#00E69A]">Live Measured</span>
+            <span className="text-xs font-mono text-[#2F75C3] dark:text-[#2F71E3]">Live Measured</span>
           </div>
           {activeScan ? (
             <div className="space-y-2.5 text-xs">
@@ -496,41 +496,41 @@ export const BackendAssessmentView: React.FC<{
                 { k: 'TLS Protocol', v: activeScan.metrics?.tls?.available ? `${activeScan.metrics.tls.protocol} (${activeScan.metrics.tls.daysRemaining}d remaining)` : 'Unavailable' },
                 { k: 'security.txt', v: activeScan.metrics?.frontendDetails?.hasSecurityTxt ? 'Present at /.well-known/security.txt' : 'Not detected' },
               ].map((row) => (
-                <div key={row.k} className="flex justify-between gap-4 py-2 border-b border-[#EFECE4] dark:border-[#1B1B1B] last:border-b-0">
-                  <span className="text-[#777267] dark:text-[#929292]">{row.k}</span>
-                  <span className="font-mono text-[#151515] dark:text-white text-right">{row.v}</span>
+                <div key={row.k} className="flex justify-between gap-4 py-2 border-b border-[#E5E7EB] dark:border-white/[0.06] last:border-b-0">
+                  <span className="text-[#5A606E] dark:text-[#9499A6]">{row.k}</span>
+                  <span className="font-mono text-[#0A0A0C] dark:text-white text-right">{row.v}</span>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-xs text-[#777267] dark:text-[#929292]">
+            <p className="text-xs text-[#5A606E] dark:text-[#9499A6]">
               No scan selected yet. Run a website audit to inspect live HTTP/TLS backend headers and latency.
             </p>
           )}
         </section>
 
-        <section className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-6 space-y-4">
+        <section className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white dark:bg-[#101115] p-6 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-[#151515] dark:text-white">Private Backend &amp; Server Scope</h2>
-            <span className="text-xs font-mono text-[#777267] dark:text-[#929292]">
+            <h2 className="text-base font-bold text-[#0A0A0C] dark:text-white">Private Backend &amp; Server Scope</h2>
+            <span className="text-xs font-mono text-[#5A606E] dark:text-[#9499A6]">
               {connectedCount > 0 ? `${connectedCount} connected` : 'Requires Integration'}
             </span>
           </div>
-          <p className="text-xs leading-relaxed text-[#777267] dark:text-[#929292]">
+          <p className="text-xs leading-relaxed text-[#5A606E] dark:text-[#9499A6]">
             Internal server source code, database queries, IAM roles, private queues, and environment secrets cannot be inspected from an unauthenticated public URL. Connect read-only hosting, API specs, or database providers to unlock verified owner posture checks.
           </p>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => onNavigate('api-audits')}
-              className="px-4 py-2 rounded-xl text-xs font-semibold border border-[#E7E0D3] dark:border-[#252525] cursor-pointer"
+              className="px-4 py-2 rounded-full text-xs font-semibold border border-[#E5E7EB] dark:border-white/[0.1] cursor-pointer"
             >
               Open API Audits
             </button>
             <button
               type="button"
               onClick={() => onNavigate('integrations')}
-              className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#151515] text-white dark:bg-white dark:text-[#050505] cursor-pointer"
+              className="px-4 py-2 rounded-full text-xs font-semibold bg-[#2F75C3] dark:bg-[#2F71E3] text-white cursor-pointer"
             >
               Connect Integrations
             </button>

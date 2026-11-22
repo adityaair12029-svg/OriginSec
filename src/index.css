@@ -2,71 +2,55 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --bg-canvas: #F7F5EF;
+  --bg-canvas: #FFFFFF;
+  --bg-surface: #F7F8FA;
   --bg-card: #FFFFFF;
-  --bg-card-inner: #FAF9F5;
-  --border-subtle: #E7E0D3;
-  --text-primary: #151515;
-  --text-secondary: #777267;
-  --accent-green: #008C55;
-  --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
-  --font-body: 'DM Sans', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --border-subtle: #E5E7EB;
+  --text-primary: #0A0A0C;
+  --text-secondary: #5A606E;
+  --accent-primary: #2F75C3;
+  --status-success: #16A34A;
 }
 
 .dark {
-  --bg-canvas: #050505;
-  --bg-card: #0B0B0B;
-  --bg-card-inner: #101010;
-  --border-subtle: #252525;
+  --bg-canvas: #070708;
+  --bg-surface: #0D0E12;
+  --bg-card: #101115;
+  --border-subtle: #20222A;
   --text-primary: #FFFFFF;
-  --text-secondary: #929292;
-  --accent-green: #00E69A;
+  --text-secondary: #9499A6;
+  --accent-primary: #2F71E3;
+  --status-success: #22C55E;
 }
 
-@layer base {
-  html {
-    font-family: var(--font-body);
-    background-color: var(--bg-canvas);
-    color: var(--text-primary);
-    scroll-behavior: smooth;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    text-rendering: optimizeLegibility;
-  }
-
-  body {
-    background-color: var(--bg-canvas);
-    color: var(--text-primary);
-    min-height: 100vh;
-    transition: background-color 220ms cubic-bezier(0.16, 1, 0.3, 1), color 220ms cubic-bezier(0.16, 1, 0.3, 1);
-  }
-
-  h1, h2, h3, h4, .font-display {
-    font-family: var(--font-display);
-  }
-
-  code, pre, .font-mono {
-    font-family: var(--font-mono);
-  }
-
-  ::selection {
-    background-color: rgba(0, 140, 85, 0.18);
-  }
-
-  .dark ::selection {
-    background-color: rgba(0, 230, 154, 0.22);
-  }
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
+body {
+  font-family: 'Plus Jakarta Sans', 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
+  margin: 0;
+  padding: 0;
+  transition: background-color 180ms ease, color 180ms ease;
 }
 
-@keyframes fadeSlideUp {
+h1, h2, h3, h4, .font-display {
+  font-family: 'Plus Jakarta Sans', 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  letter-spacing: -0.025em;
+}
+
+code, pre, .font-mono {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+}
+
+@keyframes fadeInUp {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -75,16 +59,5 @@
 }
 
 .animate-fade-up {
-  animation: fadeSlideUp 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
+  animation: fadeInUp 260ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

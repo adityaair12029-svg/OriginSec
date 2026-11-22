@@ -28,13 +28,13 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center p-6 bg-[#F7F5EF] dark:bg-[#050505] text-[#151515] dark:text-white">
-          <div className="max-w-lg w-full rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-8 space-y-4">
+        <div className="min-h-screen flex items-center justify-center p-6 bg-[#FFFFFF] dark:bg-[#070708] text-[#0A0A0C] dark:text-white">
+          <div className="max-w-lg w-full rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-[#F7F8FA] dark:bg-[#101115] p-8 space-y-4">
             <div className="flex items-center gap-3 text-red-600 dark:text-red-400">
               <AlertTriangle className="w-6 h-6 shrink-0" />
               <h2 className="text-lg font-semibold">Application Error</h2>
             </div>
-            <p className="text-sm text-[#777267] dark:text-[#929292] leading-relaxed">
+            <p className="text-sm text-[#5A606E] dark:text-[#9499A6] leading-relaxed">
               {this.state.message}
             </p>
             <button
@@ -43,7 +43,7 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
                 this.setState({ hasError: false, message: '' });
                 window.location.reload();
               }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-[#151515] text-white dark:bg-white dark:text-[#050505] hover:opacity-90 transition-opacity"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium bg-[#2F75C3] dark:bg-[#2F71E3] text-white hover:opacity-90 transition-opacity cursor-pointer"
             >
               <RefreshCw className="w-4 h-4" />
               Reload Application

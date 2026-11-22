@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { AlertCircle, ShieldCheck } from 'lucide-react';
-import type { ScanProfileId } from '../types/audit';
+import type { ScanProfileId, ThemeMode } from '../types/audit';
 import { SCAN_PROFILES } from '../lib/scanner/profiles';
+import { OriginSecMark } from './OriginSecMark';
+import { ParticleFieldCanvas } from './ParticleFieldCanvas';
 
 interface LandingHomeProps {
+  theme: ThemeMode;
   onStartScan: (params: {
     targetUrl: string;
     authorizedConfirmed: boolean;
@@ -40,6 +43,7 @@ const CATEGORIES = [
 ];
 
 export const LandingHome: React.FC<LandingHomeProps> = ({
+  theme,
   onStartScan,
   isSubmitting,
   errorMessage,
@@ -99,26 +103,28 @@ export const LandingHome: React.FC<LandingHomeProps> = ({
   const displayError = localValidationError || errorMessage;
 
   return (
-    <main className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 py-14 sm:py-20">
-      <div className="max-w-4xl w-full mx-auto text-center space-y-6 animate-fade-up">
-        <p className="text-xs sm:text-[13px] font-semibold tracking-[0.24em] uppercase text-[#777267] dark:text-[#929292]">
-          AUTONOMOUS FULL-SPECTRUM WEBSITE AUDIT
-        </p>
+    <main className="relative flex-1 flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 py-9 sm:py-12 overflow-hidden">
+      <ParticleFieldCanvas theme={theme} variant="hero" />
 
-        <h1 className="text-[38px] sm:text-6xl md:text-[64px] font-extrabold tracking-[-0.03em] leading-[1.06] text-[#151515] dark:text-white text-balance">
+      <div className="relative z-10 max-w-4xl w-full mx-auto text-center space-y-6 animate-fade-up">
+        <div className="inline-flex items-center justify-center gap-2 text-sm sm:text-base font-medium text-[#0A0A0C] dark:text-white">
+          <OriginSecMark className="w-5 h-5" />
+          <span>OriginSec Intelligence</span>
+        </div>
+
+        <h1 className="text-[44px] sm:text-[62px] lg:text-[74px] font-medium tracking-[-0.03em] leading-[1.04] text-[#0A0A0C] dark:text-white text-balance">
           Find every weakness before anyone else does.
         </h1>
 
-        <p className="max-w-2xl mx-auto text-[17px] sm:text-[20px] text-[#777267] dark:text-[#929292] leading-[1.6]">
+        <p className="max-w-2xl mx-auto text-[18px] sm:text-[21px] text-[#5A606E] dark:text-[#9499A6] leading-[1.5]">
           Paste any URL.{' '}
-          <span className="text-[#151515] dark:text-white font-medium">OriginSec</span>{' '}
-          probes the live site and scores it across security, front-end, back-end, and engagement — with exact fixes
-          for every issue it finds.
+          <span className="text-[#0A0A0C] dark:text-white font-medium">OriginSec</span>{' '}
+          probes live endpoints and scores security, front-end, back-end, and engagement with deterministic evidence.
         </p>
 
-        {/* Rounded URL Input Bar */}
-        <form onSubmit={handleSubmit} className="pt-4 max-w-3xl mx-auto w-full space-y-3.5" noValidate>
-          <div className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-2.5 sm:p-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 focus-within:border-[#008C55] dark:focus-within:border-[#00E69A] transition-all duration-200 shadow-[0_12px_40px_rgba(0,0,0,0.06)] dark:shadow-none">
+        {/* Pill URL Input Bar */}
+        <form onSubmit={handleSubmit} className="pt-2 max-w-3xl mx-auto w-full space-y-3.5" noValidate>
+          <div className="rounded-full border border-[#E5E7EB] dark:border-white/[0.12] bg-white/95 dark:bg-[#101115]/95 backdrop-blur-md p-2 sm:p-2.5 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 focus-within:border-[#2F75C3] dark:focus-within:border-[#2F71E3] transition-all duration-200 shadow-[0_14px_42px_rgba(10,10,12,0.06)] dark:shadow-[0_18px_50px_rgba(0,0,0,0.45)]">
             <label htmlFor="target-url-input" className="sr-only">
               Website URL to analyze
             </label>
@@ -133,20 +139,20 @@ export const LandingHome: React.FC<LandingHomeProps> = ({
                 if (localValidationError) setLocalValidationError(null);
               }}
               placeholder="https://example.com"
-              className="flex-1 bg-transparent px-4 sm:px-5 py-3.5 text-base sm:text-[18px] text-[#151515] dark:text-white placeholder:text-[#929292] dark:placeholder:text-[#666] focus:outline-none"
+              className="flex-1 bg-transparent px-5 py-3 text-base sm:text-[18px] text-[#0A0A0C] dark:text-white placeholder:text-[#8A919E] dark:placeholder:text-[#6B7280] focus:outline-none"
             />
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-7 py-3.5 rounded-xl font-semibold text-[15px] bg-[#151515] text-white dark:bg-white dark:text-[#050505] hover:opacity-90 active:scale-[0.99] transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+              className="px-7 py-3.5 rounded-full font-medium text-[15px] bg-[#2F75C3] dark:bg-[#2F71E3] text-white hover:opacity-95 active:scale-[0.99] transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
             >
-              {isSubmitting ? 'Starting audit...' : 'Analyze target'}
+              {isSubmitting ? 'Auditing live...' : 'Analyze target'}
             </button>
           </div>
 
           {/* Authorization Statement & Scan Profile */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 px-1 text-left">
-            <label className="inline-flex items-start sm:items-center gap-2.5 text-[13px] text-[#777267] dark:text-[#929292] cursor-pointer select-none">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 px-2 text-left">
+            <label className="inline-flex items-start sm:items-center gap-2.5 text-[14px] text-[#5A606E] dark:text-[#9499A6] cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={authorizedConfirmed}
@@ -154,13 +160,13 @@ export const LandingHome: React.FC<LandingHomeProps> = ({
                   setAuthorizedConfirmed(e.target.checked);
                   if (localValidationError) setLocalValidationError(null);
                 }}
-                className="mt-0.5 sm:mt-0 w-4 h-4 shrink-0 rounded border-[#E7E0D3] dark:border-[#333] accent-[#008C55] dark:accent-[#00E69A] cursor-pointer"
+                className="mt-0.5 sm:mt-0 w-4 h-4 shrink-0 rounded border-[#D1D5DB] dark:border-white/[0.2] accent-[#2F75C3] dark:accent-[#2F71E3] cursor-pointer"
               />
               <span>I confirm I own this website or have explicit permission to assess it.</span>
             </label>
 
-            <div className="inline-flex items-center gap-1.5 text-[13px] text-[#777267] dark:text-[#929292] shrink-0">
-              <ShieldCheck className="w-4 h-4 text-[#008C55] dark:text-[#00E69A]" />
+            <div className="inline-flex items-center gap-1.5 text-[14px] text-[#5A606E] dark:text-[#9499A6] shrink-0">
+              <ShieldCheck className="w-4 h-4 text-[#2F75C3] dark:text-[#2F71E3]" />
               <label htmlFor="scan-profile-select" className="sr-only">
                 Scan Profile
               </label>
@@ -168,10 +174,10 @@ export const LandingHome: React.FC<LandingHomeProps> = ({
                 id="scan-profile-select"
                 value={scanProfile}
                 onChange={(e) => setScanProfile(e.target.value as ScanProfileId)}
-                className="bg-transparent text-[13px] font-medium text-[#151515] dark:text-white focus:outline-none cursor-pointer"
+                className="bg-transparent text-[14px] font-medium text-[#0A0A0C] dark:text-white focus:outline-none cursor-pointer"
               >
                 {Object.values(SCAN_PROFILES).map((prof) => (
-                  <option key={prof.id} value={prof.id} className="bg-white dark:bg-[#0B0B0B]">
+                  <option key={prof.id} value={prof.id} className="bg-white dark:bg-[#101115]">
                     {prof.shortLabel}
                   </option>
                 ))}
@@ -179,14 +185,14 @@ export const LandingHome: React.FC<LandingHomeProps> = ({
             </div>
           </div>
 
-          <p className="text-[12px] text-[#777267] dark:text-[#888] text-left px-1">
+          <p className="text-[13px] text-[#5A606E] dark:text-[#9499A6] text-left px-2">
             {selectedProfileDef.label}: {selectedProfileDef.description}
           </p>
 
           {displayError && (
             <div
               role="alert"
-              className="flex items-center gap-2.5 px-4 py-3.5 rounded-xl border border-red-300 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 text-sm text-left"
+              className="flex items-center gap-2.5 px-4 py-3.5 rounded-2xl border border-red-300 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 text-sm text-left"
             >
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{displayError}</span>
@@ -198,17 +204,17 @@ export const LandingHome: React.FC<LandingHomeProps> = ({
       {/* Four Primary Category Cards */}
       <section
         aria-label="Audit Categories"
-        className="max-w-7xl w-full mx-auto mt-16 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 animate-fade-up"
+        className="relative z-10 max-w-7xl w-full mx-auto mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-up"
       >
         {CATEGORIES.map((cat) => (
           <div
             key={cat.title}
-            className="rounded-2xl border border-[#E7E0D3] dark:border-[#252525] bg-white dark:bg-[#0B0B0B] p-7 text-left hover:-translate-y-1 hover:border-[#C7BDA9] dark:hover:border-[#3A3A3A] transition-all duration-200 ease-out"
+            className="rounded-2xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white/92 dark:bg-[#101115]/92 backdrop-blur-sm p-6 text-left hover:-translate-y-1 hover:border-[#2F75C3]/50 dark:hover:border-[#2F71E3]/50 transition-all duration-200 ease-out"
           >
-            <h2 className="text-[17px] font-bold text-[#151515] dark:text-white mb-3 leading-snug">
+            <h2 className="text-[18px] font-semibold text-[#0A0A0C] dark:text-white mb-2.5 leading-snug">
               {cat.title}
             </h2>
-            <p className="text-[15px] leading-[1.6] text-[#777267] dark:text-[#929292]">
+            <p className="text-[15px] leading-[1.6] text-[#5A606E] dark:text-[#9499A6]">
               {cat.description}
             </p>
           </div>
