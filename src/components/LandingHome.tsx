@@ -107,9 +107,9 @@ export const LandingHome: React.FC<LandingHomeProps> = ({
       <ParticleFieldCanvas theme={theme} variant="hero" />
 
       <div className="relative z-10 max-w-4xl w-full mx-auto text-center space-y-6 animate-fade-up">
-        <div className="inline-flex items-center justify-center gap-2 text-sm sm:text-base font-medium text-[#0A0A0C] dark:text-white">
-          <OriginSecMark className="w-5 h-5" />
-          <span>OriginSec Intelligence</span>
+        <div className="inline-flex items-center justify-center gap-2.5 text-base sm:text-lg font-medium text-[#0A0A0C] dark:text-white">
+          <OriginSecMark theme={theme} className="w-7 h-7" />
+          <span>OriginSec</span>
         </div>
 
         <h1 className="text-[44px] sm:text-[62px] lg:text-[74px] font-medium tracking-[-0.03em] leading-[1.04] text-[#0A0A0C] dark:text-white text-balance">
@@ -122,9 +122,9 @@ export const LandingHome: React.FC<LandingHomeProps> = ({
           probes live endpoints and scores security, front-end, back-end, and engagement with deterministic evidence.
         </p>
 
-        {/* Pill URL Input Bar */}
+        {/* Responsive Pill URL Input Bar (button always stays neatly inside box on mobile & desktop) */}
         <form onSubmit={handleSubmit} className="pt-2 max-w-3xl mx-auto w-full space-y-3.5" noValidate>
-          <div className="rounded-full border border-[#E5E7EB] dark:border-white/[0.12] bg-white/95 dark:bg-[#101115]/95 backdrop-blur-md p-2 sm:p-2.5 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 focus-within:border-[#2F75C3] dark:focus-within:border-[#2F71E3] transition-all duration-200 shadow-[0_14px_42px_rgba(10,10,12,0.06)] dark:shadow-[0_18px_50px_rgba(0,0,0,0.45)]">
+          <div className="w-full overflow-hidden rounded-2xl sm:rounded-full border border-[#E5E7EB] dark:border-white/[0.12] bg-white/95 dark:bg-[#101115]/95 backdrop-blur-md p-2 sm:p-2.5 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 focus-within:border-[#2F75C3] dark:focus-within:border-[#2F71E3] transition-all duration-200 shadow-[0_14px_42px_rgba(10,10,12,0.06)] dark:shadow-[0_18px_50px_rgba(0,0,0,0.45)]">
             <label htmlFor="target-url-input" className="sr-only">
               Website URL to analyze
             </label>
@@ -139,12 +139,12 @@ export const LandingHome: React.FC<LandingHomeProps> = ({
                 if (localValidationError) setLocalValidationError(null);
               }}
               placeholder="https://example.com"
-              className="flex-1 bg-transparent px-5 py-3 text-base sm:text-[18px] text-[#0A0A0C] dark:text-white placeholder:text-[#8A919E] dark:placeholder:text-[#6B7280] focus:outline-none"
+              className="w-full min-w-0 flex-1 bg-transparent px-4 sm:px-5 py-2.5 sm:py-3 text-base sm:text-[18px] text-[#0A0A0C] dark:text-white placeholder:text-[#8A919E] dark:placeholder:text-[#6B7280] focus:outline-none"
             />
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-7 py-3.5 rounded-full font-medium text-[15px] bg-[#2F75C3] dark:bg-[#2F71E3] text-white hover:opacity-95 active:scale-[0.99] transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+              className="w-full sm:w-auto px-6 sm:px-7 py-3 sm:py-3.5 rounded-xl sm:rounded-full font-medium text-[15px] bg-[#2F75C3] dark:bg-[#2F71E3] text-white hover:opacity-95 active:scale-[0.99] transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
             >
               {isSubmitting ? 'Auditing live...' : 'Analyze target'}
             </button>

@@ -63,6 +63,7 @@ import type {
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Header, type AppRoute } from './components/Header';
 import { Footer } from './components/Footer';
+import { OriginSecMark } from './components/OriginSecMark';
 import { LandingHome } from './components/LandingHome';
 import { LoginView } from './components/LoginView';
 import { ScanProgressView, type ActiveScanProgress } from './components/ScanProgressView';
@@ -101,7 +102,7 @@ function getInitialTheme(): ThemeMode {
   } catch {
     // Ignore storage access errors
   }
-  return 'dark';
+  return 'light';
 }
 
 async function parseJsonSafe<T = Record<string, any>>(res: Response): Promise<{ data: T | null; rawText: string }> {
@@ -251,11 +252,11 @@ export default function App() {
     };
   }, []);
 
-  // Automatically navigate from login screen once authenticated
+  // Automatically navigate to scanner home once authenticated from login screen
   useEffect(() => {
     if (user && route === 'login') {
       setAuthNotice(null);
-      setRoute('dashboard');
+      setRoute('home');
     }
   }, [user, route]);
 
@@ -287,9 +288,9 @@ export default function App() {
 
   const handleSignOut = async () => {
     await signOutUser();
-    if (route === 'dashboard' || route === 'settings' || route === 'admin' || route === 'websites' || route === 'remediation' || route === 'notifications') {
-      setRoute('home');
-    }
+    setSelectedReport(null);
+    setActiveProgress(null);
+    setRoute(isFirebaseConfigured ? 'login' : 'home');
   };
 
   const allScans = user ? firestoreScans : sessionScans;
@@ -785,8 +786,15 @@ export default function App() {
     };
   }, [universalQuery, allScans, websites, remediationTasks]);
 
+  const mustGateOnLogin = isFirebaseConfigured && authReady && !user;
+
   const isDashboardWorkspaceRoute =
-    route !== 'home' && route !== 'login' && route !== 'scan' && route !== 'report';
+    !mustGateOnLogin &&
+    authReady &&
+    route !== 'home' &&
+    route !== 'login' &&
+    route !== 'scan' &&
+    route !== 'report';
 
   return (
     <ErrorBoundary>
@@ -797,9 +805,13 @@ export default function App() {
           user={user}
           onSignIn={handleSignIn}
           onSignOut={handleSignOut}
-          activeRoute={route}
+          activeRoute={mustGateOnLogin && route !== 'about' ? 'login' : route}
           onNavigate={(r) => {
             setAuthNotice(null);
+            if (mustGateOnLogin && r !== 'about') {
+              setRoute('login');
+              return;
+            }
             setRoute(r);
           }}
           authLoading={authLoading}
@@ -808,7 +820,7 @@ export default function App() {
           onOpenSearch={() => setSearchOpen(true)}
         />
 
-        {authNotice && route !== 'login' && (
+        {authNotice && route !== 'login' && !mustGateOnLogin && (
           <div className="max-w-4xl mx-auto mt-4 px-4 w-full">
             <div className="rounded-xl border border-amber-400/50 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-800 dark:text-amber-300 flex items-center justify-between gap-2">
               <span>{authNotice}</span>
@@ -819,7 +831,39 @@ export default function App() {
           </div>
         )}
 
-        {route === 'home' && (
+        {!authReady && (
+          <main className="flex-1 flex flex-col items-center justify-center px-4 py-20">
+            <OriginSecMark theme={theme} className="w-12 h-12 mb-4 animate-pulse" />
+            <p className="text-sm text-[#5A606E] dark:text-[#9499A6]">Checking session...</p>
+          </main>
+        )}
+
+        {mustGateOnLogin && route !== 'about' && (
+          <LoginView
+            theme={theme}
+            authLoading={authLoading}
+            authNotice={authNotice}
+            onGoogleSignIn={handleSignIn}
+            requireAuthGate={true}
+          />
+        )}
+
+        {mustGateOnLogin && route === 'about' && (
+          <main className="max-w-4xl mx-auto w-full px-4 sm:px-6 py-10 space-y-6">
+            <div>
+              <button
+                type="button"
+                onClick={() => setRoute('login')}
+                className="text-sm font-medium text-[#2F75C3] dark:text-[#2F71E3] hover:underline cursor-pointer"
+              >
+                &larr; Back to Sign in
+              </button>
+            </div>
+            <AboutView />
+          </main>
+        )}
+
+        {authReady && !mustGateOnLogin && route === 'home' && (
           <LandingHome
             theme={theme}
             onStartScan={handleStartScan}
@@ -828,12 +872,13 @@ export default function App() {
           />
         )}
 
-        {route === 'login' && (
+        {authReady && !mustGateOnLogin && route === 'login' && (
           <LoginView
             theme={theme}
             authLoading={authLoading}
             authNotice={authNotice}
             onGoogleSignIn={handleSignIn}
+            requireAuthGate={false}
             onContinueAsGuest={() => {
               setAuthNotice(null);
               setRoute('home');
@@ -841,7 +886,7 @@ export default function App() {
           />
         )}
 
-        {route === 'scan' && activeProgress && (
+        {authReady && !mustGateOnLogin && route === 'scan' && activeProgress && (
           <ScanProgressView
             progress={activeProgress}
             onCancel={handleCancelActiveScan}
@@ -853,7 +898,7 @@ export default function App() {
           />
         )}
 
-        {route === 'report' && selectedReport && (
+        {authReady && !mustGateOnLogin && route === 'report' && selectedReport && (
           <AuditReportView
             scan={selectedReport}
             onRescan={(url) => handleRescan(url, selectedReport.scanProfile || 'standard')}
@@ -1178,7 +1223,7 @@ export default function App() {
           </div>
         )}
 
-        <Footer onNavigate={setRoute} />
+        <Footer theme={theme} onNavigate={setRoute} />
       </div>
     </ErrorBoundary>
   );

@@ -1,24 +1,38 @@
 import React from 'react';
+import type { ThemeMode } from '../types/audit';
 
 interface OriginSecMarkProps {
+  theme?: ThemeMode;
   className?: string;
 }
 
-export const OriginSecMark: React.FC<OriginSecMarkProps> = ({ className = 'w-6 h-6' }) => (
-  <svg
-    viewBox="0 0 32 32"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    aria-hidden="true"
-    className={className}
-  >
-    <path
-      d="M16 3L27.5 26.5C27.85 27.2 27.15 27.95 26.42 27.62L18.4 24.05C16.87 23.37 15.13 23.37 13.6 24.05L5.58 27.62C4.85 27.95 4.15 27.2 4.5 26.5L16 3Z"
-      fill="currentColor"
-    />
-    <path
-      d="M16 10.5L20.5 20.2C17.8 19.1 14.2 19.1 11.5 20.2L16 10.5Z"
-      fill="#2F71E3"
-    />
-  </svg>
-);
+const LIGHT_LOGO_SRC = '/assets/aistudio/Screenshot_20260821-152942_2b0f49ae.jpg';
+const DARK_LOGO_SRC = '/assets/aistudio/Screenshot_20260809-103828_3b3c6268.jpg';
+
+export const OriginSecMark: React.FC<OriginSecMarkProps> = ({ theme, className = 'w-7 h-7' }) => {
+  const isDark =
+    theme !== undefined
+      ? theme === 'dark'
+      : typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+
+  return (
+    <span
+      className={`inline-flex items-center justify-center overflow-hidden shrink-0 select-none ${className}`}
+      aria-hidden="true"
+    >
+      {isDark ? (
+        <img
+          src={DARK_LOGO_SRC}
+          alt=""
+          className="w-full h-full object-cover object-[50%_52%] scale-[1.58] mix-blend-screen contrast-125 brightness-110 [mask-image:radial-gradient(circle,black_55%,transparent_82%)] pointer-events-none"
+        />
+      ) : (
+        <img
+          src={LIGHT_LOGO_SRC}
+          alt=""
+          className="w-full h-full object-contain scale-[1.08] mix-blend-multiply pointer-events-none"
+        />
+      )}
+    </span>
+  );
+};

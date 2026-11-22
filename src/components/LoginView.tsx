@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import type { ThemeMode } from '../types/audit';
 import { OriginSecMark } from './OriginSecMark';
 import { ParticleFieldCanvas } from './ParticleFieldCanvas';
@@ -9,7 +9,8 @@ interface LoginViewProps {
   authLoading: boolean;
   authNotice: string | null;
   onGoogleSignIn: () => Promise<void>;
-  onContinueAsGuest: () => void;
+  requireAuthGate?: boolean;
+  onContinueAsGuest?: () => void;
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({
@@ -17,6 +18,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
   authLoading,
   authNotice,
   onGoogleSignIn,
+  requireAuthGate = true,
   onContinueAsGuest,
 }) => {
   const [showHelp, setShowHelp] = useState(false);
@@ -26,20 +28,18 @@ export const LoginView: React.FC<LoginViewProps> = ({
       <ParticleFieldCanvas theme={theme} variant="wave" />
 
       <div className="relative z-10 w-full max-w-[390px] flex flex-col items-center text-center space-y-6 animate-fade-up">
-        <div className="w-12 h-12 flex items-center justify-center text-[#0A0A0C] dark:text-white">
-          <OriginSecMark className="w-10 h-10" />
-        </div>
+        <OriginSecMark theme={theme} className="w-14 h-14" />
 
         <div className="space-y-2">
           <h1 className="text-[28px] sm:text-[32px] font-medium tracking-[-0.025em] text-[#0A0A0C] dark:text-white">
             Welcome to OriginSec
           </h1>
           <p className="text-sm text-[#5A606E] dark:text-[#9499A6]">
-            Sign in once to persist scan reports, verify domains, and monitor uptime across devices.
+            Sign in with Google once to access live security audits, scan reports, and monitoring.
           </p>
         </div>
 
-        <div className="w-full rounded-2xl border border-[#E5E7EB] dark:border-white/[0.09] bg-white/90 dark:bg-[#101115]/90 backdrop-blur-md p-4 space-y-2.5 shadow-[0_18px_50px_rgba(10,10,12,0.08)] dark:shadow-[0_24px_60px_rgba(0,0,0,0.6)]">
+        <div className="w-full rounded-2xl border border-[#E5E7EB] dark:border-white/[0.09] bg-white/92 dark:bg-[#101115]/92 backdrop-blur-md p-4 space-y-2.5 shadow-[0_18px_50px_rgba(10,10,12,0.08)] dark:shadow-[0_24px_60px_rgba(0,0,0,0.6)]">
           <button
             type="button"
             onClick={() => void onGoogleSignIn()}
@@ -59,13 +59,15 @@ export const LoginView: React.FC<LoginViewProps> = ({
             <span>{authLoading ? 'Signing in...' : 'Continue with Google'}</span>
           </button>
 
-          <button
-            type="button"
-            onClick={onContinueAsGuest}
-            className="w-full h-11 rounded-full bg-[#F1F3F6] dark:bg-[#1B1D23] hover:bg-[#E5E8EE] dark:hover:bg-[#242730] text-[#0A0A0C] dark:text-white text-sm font-medium transition-colors cursor-pointer"
-          >
-            Continue to Scanner without signing in
-          </button>
+          {!requireAuthGate && onContinueAsGuest && (
+            <button
+              type="button"
+              onClick={onContinueAsGuest}
+              className="w-full h-11 rounded-full bg-[#F1F3F6] dark:bg-[#1B1D23] hover:bg-[#E5E8EE] dark:hover:bg-[#242730] text-[#0A0A0C] dark:text-white text-sm font-medium transition-colors cursor-pointer"
+            >
+              Continue to Scanner
+            </button>
+          )}
         </div>
 
         {authNotice && (
@@ -91,21 +93,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
           {showHelp && (
             <div className="rounded-xl border border-[#E5E7EB] dark:border-white/[0.08] bg-white/95 dark:bg-[#101115]/95 p-4 text-left text-xs text-[#5A606E] dark:text-[#9499A6] space-y-1.5">
               <p className="font-semibold text-[#0A0A0C] dark:text-white">Troubleshooting Sign-In</p>
-              <p>1. Allow pop-ups for this site or wait for redirect completion if blocked by your browser.</p>
-              <p>2. Ensure your current hostname is listed in Firebase Console → Authentication → Authorized Domains.</p>
-              <p>3. Your session stays persisted locally once verified—you will not be prompted repeatedly.</p>
+              <p>1. Allow pop-ups for this domain or wait for Google redirect sign-in to complete.</p>
+              <p>2. Your session stays persisted locally once verified—you will not be prompted again.</p>
             </div>
           )}
         </div>
-
-        <button
-          type="button"
-          onClick={onContinueAsGuest}
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-[#2F75C3] dark:text-[#2F71E3] hover:underline cursor-pointer"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          Back to Landing Page
-        </button>
       </div>
     </main>
   );

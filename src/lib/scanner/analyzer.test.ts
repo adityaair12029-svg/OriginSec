@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import http from 'node:http';
 import {
   analyzeAllCategories,
@@ -13,6 +14,7 @@ import { createApiApp } from '../server/app';
 import { buildScanHistoryCsvContent } from '../export/exporters';
 import { buildWebsiteScoreTrends } from './trends';
 import { extractGroundingSources } from '../server/gemini';
+import { verifyFirebaseJwtWithCerts } from '../server/auth';
 import type { ScanCoverage, WebsiteScan } from '../../types/audit';
 
 function makeCoverage(): ScanCoverage {
@@ -440,5 +442,68 @@ test('extractGroundingSources deduplicates verified HTTP/HTTPS links and filters
   assert.equal(sources.length, 2);
   assert.equal(sources[0].title, 'OWASP Secure Headers');
   assert.equal(sources[1].uri, 'https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP');
+});
+
+test('verifyFirebaseJwtWithCerts validates RS256 Firebase JWT claims without jwks-rsa/jose', () => {
+  const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+  });
+
+  const signJwt = (payload: Record<string, unknown>, kid = 'test-key-1') => {
+    const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT', kid })).toString('base64url');
+    const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    const signer = crypto.createSign('RSA-SHA256');
+    signer.update(`${header}.${body}`);
+    signer.end();
+    const signature = signer.sign(privateKey).toString('base64url');
+    return `${header}.${body}.${signature}`;
+  };
+
+  const now = 1_800_000_000;
+  const projectId = 'cool-proposal-1c62s';
+  const certs = { 'test-key-1': publicKey };
+
+  const validToken = signJwt({
+    aud: projectId,
+    iss: `https://securetoken.google.com/${projectId}`,
+    sub: 'uid_abc_123',
+    email: 'adityaair1.2029@gmail.com',
+    email_verified: true,
+    iat: now - 60,
+    auth_time: now - 60,
+    exp: now + 3600,
+  });
+
+  const verified = verifyFirebaseJwtWithCerts(validToken, projectId, certs, now);
+  assert.deepEqual(verified, {
+    uid: 'uid_abc_123',
+    email: 'adityaair1.2029@gmail.com',
+    emailVerified: true,
+  });
+
+  const expiredToken = signJwt({
+    aud: projectId,
+    iss: `https://securetoken.google.com/${projectId}`,
+    sub: 'uid_abc_123',
+    iat: now - 7200,
+    auth_time: now - 7200,
+    exp: now - 10,
+  });
+  assert.equal(verifyFirebaseJwtWithCerts(expiredToken, projectId, certs, now), null);
+
+  const wrongAudToken = signJwt({
+    aud: 'other-project',
+    iss: 'https://securetoken.google.com/other-project',
+    sub: 'uid_abc_123',
+    iat: now - 60,
+    auth_time: now - 60,
+    exp: now + 3600,
+  });
+  assert.equal(verifyFirebaseJwtWithCerts(wrongAudToken, projectId, certs, now), null);
+
+  const tamperedToken = `${validToken.slice(0, -4)}AAAA`;
+  assert.equal(verifyFirebaseJwtWithCerts(tamperedToken, projectId, certs, now), null);
 });
 
