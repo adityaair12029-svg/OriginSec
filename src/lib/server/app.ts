@@ -119,13 +119,33 @@ export function createApiApp() {
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
-    if (isProduction) {
+    res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+    if (isProduction || isVercelRuntime) {
       res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+      res.setHeader(
+        'Content-Security-Policy',
+        "default-src 'self'; script-src 'self' https://apis.google.com https://accounts.google.com https://www.gstatic.com; style-src 'self' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com https://accounts.google.com https://firebase.googleapis.com https://firebaseinstallations.googleapis.com https://cool-proposal-1c62s.firebaseapp.com https://api.microlink.io https://iad.microlink.io; frame-src 'self' https://cool-proposal-1c62s.firebaseapp.com https://accounts.google.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+      );
     }
     next();
   });
 
   app.use(express.json({ limit: '1mb' }));
+
+  app.get('/.well-known/security.txt', (_req, res) => {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(
+      [
+        'Contact: mailto:adityaair1.2029@gmail.com',
+        'Expires: 2027-12-31T23:59:00.000Z',
+        'Preferred-Languages: en, hi',
+        'Canonical: https://originsec.vercel.app/.well-known/security.txt',
+        'Policy: https://originsec.vercel.app/',
+        '',
+      ].join('\n')
+    );
+  });
 
   app.get('/api/health', (_req, res) => {
     res.json({

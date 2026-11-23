@@ -586,9 +586,112 @@ test('POST /api/scans/screenshot blocks private loopback targets via SSRF policy
     const body = (await res.json()) as { available?: boolean; error?: string };
     assert.equal(body.available, false);
     assert.ok(typeof body.error === 'string' && body.error.length > 0);
+
+    // /.well-known/security.txt returns RFC 9116 text + hardened security headers
+    const secTxtRes = await fetch(`${baseUrl}/.well-known/security.txt`);
+    assert.equal(secTxtRes.status, 200);
+    const secTxtBody = await secTxtRes.text();
+    assert.ok(secTxtBody.includes('Contact: mailto:adityaair1.2029@gmail.com'));
+    assert.equal(secTxtRes.headers.get('cross-origin-resource-policy'), 'same-origin');
+    assert.equal(secTxtRes.headers.get('permissions-policy'), 'camera=(), microphone=(), geolocation=()');
+    assert.equal(secTxtRes.headers.get('x-content-type-options'), 'nosniff');
+    assert.equal(secTxtRes.headers.get('x-frame-options'), 'SAMEORIGIN');
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });
+
+test('OriginSec vercel.json headers and index.html pass all fixable security, SEO, favicon, and H1 rules', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const root = process.cwd();
+  const vercelCfg = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8')) as {
+    headers: Array<{ source: string; headers: Array<{ key: string; value: string }> }>;
+  };
+  const globalBlock = vercelCfg.headers.find((h) => h.source === '/(.*)');
+  assert.ok(globalBlock);
+  const headersMap: Record<string, string> = {
+    'cache-control': 'public, max-age=0, must-revalidate',
+    'content-encoding': 'br',
+  };
+  for (const h of globalBlock.headers) {
+    headersMap[h.key.toLowerCase()] = h.value;
+  }
+
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  const coverage = makeCoverage();
+  const res = analyzeAllCategories(
+    {
+      scanId: 'scan_originsec_self',
+      ownerUid: 'admin',
+      targetUrl: 'https://originsec.vercel.app/',
+      finalUrl: 'https://originsec.vercel.app/',
+      isHttps: true,
+      httpRedirectsToHttps: true,
+      headers: headersMap,
+      setCookieHeaders: [],
+      tls: {
+        available: true,
+        authorized: true,
+        protocol: 'TLSv1.3',
+        cipher: 'TLS_AES_256_GCM_SHA384',
+        issuer: 'Google Trust Services',
+        subject: 'originsec.vercel.app',
+        validFrom: '2026-01-01T00:00:00Z',
+        validTo: '2027-01-01T00:00:00Z',
+        daysRemaining: 90,
+        hostnameMatch: true,
+      },
+      dns: {
+        resolved: true,
+        aRecords: ['76.76.21.21'],
+        aaaaRecords: [],
+        mxRecords: [],
+        txtRecords: [],
+        caaRecords: [],
+        hasSpf: false,
+        hasDmarc: false,
+      },
+      mixedContentUrls: [],
+      hasSecurityTxt: true,
+      hasRobotsTxt: true,
+      hasSitemapXml: true,
+      sensitivePathsExposed: [],
+    },
+    {
+      scanId: 'scan_originsec_self',
+      ownerUid: 'admin',
+      targetUrl: 'https://originsec.vercel.app/',
+      finalUrl: 'https://originsec.vercel.app/',
+      html,
+      htmlSizeBytes: Buffer.byteLength(html, 'utf8'),
+      ttfbMs: 12,
+      warmTtfbMs: 8,
+      totalResponseTimeMs: 18,
+      statusCode: 200,
+      redirectCount: 0,
+      headers: headersMap,
+      brokenInternalLinks: [],
+      brokenImages: [],
+      lighthouse: { available: false, source: 'not_configured', strategy: 'mobile', dataType: 'none' },
+    },
+    coverage
+  );
+
+  for (const ruleId of ['SEC_CSP', 'SEC_CLICKJACKING', 'SEC_XCTO', 'SEC_REFERRER', 'ENG_H1']) {
+    const f = res.findings.find((item) => item.ruleId === ruleId);
+    assert.ok(f, `Expected finding ${ruleId}`);
+    assert.equal(f.status, 'passed', `Expected ${ruleId} to pass, got ${f.status} (${f.title})`);
+  }
+
+  for (const absentRule of ['SEC_PERMISSIONS', 'SEC_COOP_CORP', 'SEC_SECURITY_TXT', 'FE_FAVICON', 'SEO_OG_CANONICAL']) {
+    assert.equal(
+      res.findings.some((item) => item.ruleId === absentRule && item.status === 'open'),
+      false,
+      `Expected ${absentRule} not to be open`
+    );
+  }
+});
+
 
 
