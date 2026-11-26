@@ -596,6 +596,11 @@ test('POST /api/scans/screenshot blocks private loopback targets via SSRF policy
     assert.equal(secTxtRes.headers.get('permissions-policy'), 'camera=(), microphone=(), geolocation=()');
     assert.equal(secTxtRes.headers.get('x-content-type-options'), 'nosniff');
     assert.equal(secTxtRes.headers.get('x-frame-options'), 'SAMEORIGIN');
+
+    const adsTxtRes = await fetch(`${baseUrl}/ads.txt`);
+    assert.equal(adsTxtRes.status, 200);
+    const adsTxtBody = await adsTxtRes.text();
+    assert.ok(adsTxtBody.includes('pub-8553738834266214'));
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
@@ -684,13 +689,15 @@ test('OriginSec vercel.json headers and index.html pass all fixable security, SE
     assert.equal(f.status, 'passed', `Expected ${ruleId} to pass, got ${f.status} (${f.title})`);
   }
 
-  for (const absentRule of ['SEC_PERMISSIONS', 'SEC_COOP_CORP', 'SEC_SECURITY_TXT', 'FE_FAVICON', 'SEO_OG_CANONICAL']) {
+  for (const absentRule of ['SEC_PERMISSIONS', 'SEC_COOP_CORP', 'SEC_SECURITY_TXT', 'FE_FAVICON', 'SEO_OG_CANONICAL', 'PERF_RENDER_BLOCKING']) {
     assert.equal(
       res.findings.some((item) => item.ruleId === absentRule && item.status === 'open'),
       false,
       `Expected ${absentRule} not to be open`
     );
   }
+  assert.ok(html.includes('ca-pub-8553738834266214'));
+  assert.ok(headersMap['content-security-policy'].includes('https://pagead2.googlesyndication.com'));
 });
 
 

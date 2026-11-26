@@ -415,6 +415,15 @@ export function analyzeAllCategories(
   }
 
   const csp = getHeader('content-security-policy');
+  const scriptOrDefaultHasUnsafeInline = Boolean(
+    csp &&
+      csp
+        .split(';')
+        .some((dir) => {
+          const lower = dir.trim().toLowerCase();
+          return (lower.startsWith('script-src') || lower.startsWith('default-src')) && lower.includes("'unsafe-inline'");
+        })
+  );
   if (!csp) {
     push({
       ruleId: 'SEC_CSP',
@@ -434,7 +443,7 @@ export function analyzeAllCategories(
       verification: 'Repeat the header assessment and confirm Content-Security-Policy is returned without breaking legitimate assets.',
       status: 'open',
     });
-  } else if (csp.includes("'unsafe-inline'") || csp.includes('*')) {
+  } else if (scriptOrDefaultHasUnsafeInline || csp.includes('*')) {
     push({
       ruleId: 'SEC_CSP',
       subCategory: 'headers',
